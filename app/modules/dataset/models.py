@@ -243,6 +243,7 @@ class MaterialsDataset(BaseDataset):
     csv_file_path = db.Column(db.String(512))
 
     # Relationships specific to Materials datasets
+    user = db.relationship("User", backref=db.backref("materials_datasets", lazy=True))
     ds_meta_data = db.relationship("DSMetaData", backref=db.backref("materials_dataset", uselist=False))
     material_records = db.relationship("MaterialRecord", backref="materials_dataset", lazy=True, cascade="all, delete")
 

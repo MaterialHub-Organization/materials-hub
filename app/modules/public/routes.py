@@ -2,7 +2,7 @@ import logging
 
 from flask import render_template
 
-from app.modules.dataset.services import DataSetService, MaterialsDatasetService
+from app.modules.dataset.services import DataSetService
 from app.modules.dataset.repositories import MaterialsDatasetRepository
 from app.modules.featuremodel.services import FeatureModelService
 from app.modules.public import public_bp
@@ -31,7 +31,7 @@ def index():
 
     # Statistics: materials datasets
     materials_datasets_counter = materials_dataset_repository.count_all()
-    latest_materials_datasets = materials_dataset_repository.get_all()[:5]  # Get latest 5
+    latest_materials_datasets = materials_dataset_repository.get_all()  # Get all materials datasets
 
     return render_template(
         "public/index.html",

@@ -319,17 +319,12 @@ def list_materials_datasets():
 
 
 @dataset_bp.route("/materials/<int:dataset_id>", methods=["GET"])
-@login_required
 def view_materials_dataset(dataset_id):
-    """View details of a MaterialsDataset"""
+    """View details of a MaterialsDataset (public view)"""
     dataset = materials_dataset_repository.get_by_id(dataset_id)
 
     if not dataset:
         abort(404)
-
-    # Check if user owns this dataset
-    if dataset.user_id != current_user.id:
-        abort(403)
 
     # Get pagination parameters
     page = request.args.get('page', 1, type=int)
@@ -423,17 +418,12 @@ def upload_materials_csv(dataset_id):
 
 
 @dataset_bp.route("/materials/<int:dataset_id>/statistics", methods=["GET"])
-@login_required
 def materials_dataset_statistics(dataset_id):
-    """View statistics for a MaterialsDataset"""
+    """View statistics for a MaterialsDataset (public view)"""
     dataset = materials_dataset_repository.get_by_id(dataset_id)
 
     if not dataset:
         abort(404)
-
-    # Check if user owns this dataset
-    if dataset.user_id != current_user.id:
-        abort(403)
 
     return render_template(
         "dataset/materials_statistics.html",
@@ -442,17 +432,12 @@ def materials_dataset_statistics(dataset_id):
 
 
 @dataset_bp.route("/materials/<int:dataset_id>/search", methods=["GET"])
-@login_required
 def search_materials(dataset_id):
-    """Search materials in a dataset"""
+    """Search materials in a dataset (public view)"""
     dataset = materials_dataset_repository.get_by_id(dataset_id)
 
     if not dataset:
         abort(404)
-
-    # Check if user owns this dataset
-    if dataset.user_id != current_user.id:
-        abort(403)
 
     search_term = request.args.get('q', '', type=str)
 
