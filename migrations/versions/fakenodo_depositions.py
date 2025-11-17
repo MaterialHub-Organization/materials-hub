@@ -1,7 +1,7 @@
 """Fakenodo depositions
 
-Revision ID: 44b375f6f3a4
-Revises: eda0c880820f
+Revision ID: 003
+Revises: 002
 Create Date: 2025-11-10 11:33:43.463755
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '44b375f6f3a4'
-down_revision = 'eda0c880820f'
+revision = '003'
+down_revision = '002'
 branch_labels = None
 depends_on = None
 
