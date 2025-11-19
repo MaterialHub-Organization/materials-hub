@@ -77,7 +77,13 @@ pip install -r requirements.txt
 
 # Dependencias Node (si aplica)
 npm install
+
+# Instalar pre-commit hooks (calidad de código automática)
+pre-commit install
+pre-commit install --hook-type commit-msg
 ```
+
+**Nota:** Los pre-commit hooks formatean y validan tu código automáticamente antes de cada commit. Ver [Guía de Pre-commit Hooks](docs/pre-commit-hooks-guide.md) para más detalles.
 
 ### 4. Configurar Variables de Entorno
 
@@ -313,6 +319,7 @@ materials-hub/
 ## 📚 Documentación Adicional
 
 - **[Guía de Configuración de Base de Datos](docs/database_setup_guide.md)** - Comandos detallados de gestión de BD
+- **[Guía de Pre-commit Hooks](docs/pre-commit-hooks-guide.md)** - Calidad de código automática
 - **[Implementación de Materials Dataset](docs/materials_dataset_implementation_summary.md)** - Detalles técnicos
 - **[Guía de Testing](docs/testing_guide.md)** - Cómo ejecutar y escribir tests
 - **[Documentación API](docs/api_documentation.md)** - Endpoints de la API
@@ -333,9 +340,16 @@ materials-hub/
 ### Estándares de Código
 
 - **Python**: Seguimos PEP 8 (verificado con flake8)
+- **Formato**: Auto-formateado con Black (120 caracteres por línea)
 - **Commits**: Usamos [Conventional Commits](https://www.conventionalcommits.org/)
+  ```bash
+  feat: add new feature
+  fix: resolve bug
+  docs: update documentation
+  ```
 - **Tests**: Todo nuevo código debe incluir tests
 - **Documentación**: Documenta funciones y clases complejas
+- **Pre-commit Hooks**: Instalados automáticamente, formatean y validan antes de commit
 
 ### Crear un Nuevo Módulo
 
