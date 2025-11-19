@@ -673,3 +673,181 @@ class MaterialsDatasetService:
                 'records_created': 0,
                 'error': f"Database error: {str(e)}"
             }
+
+    def get_recommendations(self, materials_dataset_id: int, limit: int = 3):
+        """
+        Gets recommended materials datasets based on tag similarity,
+        publication type, and author.
+
+        Args:
+            materials_dataset_id: ID of the current materials dataset
+            limit: Maximum number of recommendations (default: 3)
+
+        Returns:
+            List of MaterialsDataset ordered by relevance
+        """
+        from app.modules.dataset.models import MaterialsDataset
+
+        try:
+            # Get current dataset
+            current_dataset = self.materials_dataset_repository.get_by_id(materials_dataset_id)
+            if not current_dataset:
+                return []
+
+            # Check if it has metadata and tags
+            if not current_dataset.ds_meta_data or not current_dataset.ds_meta_data.tags:
+                # If no tags, return recent datasets
+                return MaterialsDataset.query.filter(
+                    MaterialsDataset.id != materials_dataset_id,
+                    MaterialsDataset.ds_meta_data_id.isnot(None)
+                ).order_by(MaterialsDataset.created_at.desc()).limit(limit).all()
+
+            # Get tags from current dataset
+            current_tags = set(tag.strip().lower() for tag in current_dataset.ds_meta_data.tags.split(','))
+
+            # Get all other materials datasets
+            all_datasets = MaterialsDataset.query.filter(
+                MaterialsDataset.id != materials_dataset_id,
+                MaterialsDataset.ds_meta_data_id.isnot(None)
+            ).all()
+
+            # Calculate similarity score for each dataset
+            recommendations = []
+            for dataset in all_datasets:
+                score = 0
+
+                # Check valid metadata
+                if not dataset.ds_meta_data:
+                    continue
+
+                # 1. Tag similarity (weight: 3 points per common tag)
+                if dataset.ds_meta_data.tags:
+                    dataset_tags = set(tag.strip().lower() for tag in dataset.ds_meta_data.tags.split(','))
+                    common_tags = current_tags.intersection(dataset_tags)
+                    score += len(common_tags) * 3
+
+                # 2. Same publication type (weight: 2 points)
+                if (hasattr(dataset.ds_meta_data, 'publication_type') and
+                        hasattr(current_dataset.ds_meta_data, 'publication_type') and
+                        dataset.ds_meta_data.publication_type == current_dataset.ds_meta_data.publication_type):
+                    score += 2
+
+                # 3. Same author (weight: 1 point)
+                if dataset.user_id == current_dataset.user_id:
+                    score += 1
+
+                # Only add if has some score
+                if score > 0:
+                    recommendations.append((dataset, score))
+
+            # Sort by score descending
+            recommendations.sort(key=lambda x: x[1], reverse=True)
+
+            # Get top results
+            result = [rec[0] for rec in recommendations[:limit]]
+
+            # If not enough recommendations, complete with recent datasets
+            if len(result) < limit:
+                recent_datasets = MaterialsDataset.query.filter(
+                    MaterialsDataset.id != materials_dataset_id,
+                    MaterialsDataset.ds_meta_data_id.isnot(None)
+                ).order_by(MaterialsDataset.created_at.desc()).limit(limit - len(result)).all()
+
+                # Add only those not already in result
+                result_ids = {d.id for d in result}
+                for dataset in recent_datasets:
+                    if dataset.id not in result_ids:
+                        result.append(dataset)
+                        if len(result) >= limit:
+                            break
+
+            return result[:limit]
+
+        except Exception as e:
+            logger.exception(f"Error getting recommendations for materials dataset {materials_dataset_id}: {e}")
+            # In case of error, return empty list
+            return []
+
+    def get_all_except(self, materials_dataset_id: int):
+        """
+        Gets all materials datasets except the specified one.
+
+        Args:
+            materials_dataset_id: ID of the materials dataset to exclude
+
+        Returns:
+            List of MaterialsDataset
+        """
+        from app.modules.dataset.models import MaterialsDataset
+
+        return MaterialsDataset.query.filter(
+            MaterialsDataset.id != materials_dataset_id,
+            MaterialsDataset.ds_meta_data_id.isnot(None)
+        ).all()
+
+    def filter_by_authors(self, datasets, current_dataset):
+        """
+        Filters materials datasets that share authors with current dataset.
+
+        Args:
+            datasets: List of materials datasets to filter
+            current_dataset: Reference materials dataset
+
+        Returns:
+            Filtered list of materials datasets
+        """
+        if not current_dataset.ds_meta_data or not current_dataset.ds_meta_data.authors:
+            return []
+
+        current_authors = {a.name.strip().lower() for a in current_dataset.ds_meta_data.authors}
+
+        return [
+            ds for ds in datasets
+            if ds.ds_meta_data
+            and ds.ds_meta_data.authors
+            and any(a.name.strip().lower() in current_authors for a in ds.ds_meta_data.authors)
+        ]
+
+    def filter_by_tags(self, datasets, current_dataset):
+        """
+        Filters materials datasets that share tags with current dataset.
+
+        Args:
+            datasets: List of materials datasets to filter
+            current_dataset: Reference materials dataset
+
+        Returns:
+            Filtered list of materials datasets
+        """
+        if not current_dataset.ds_meta_data or not current_dataset.ds_meta_data.tags:
+            return []
+
+        current_tags = {t.strip().lower() for t in current_dataset.ds_meta_data.tags.split(",")}
+
+        return [
+            ds for ds in datasets
+            if ds.ds_meta_data
+            and ds.ds_meta_data.tags
+            and any(t.strip().lower() in current_tags for t in ds.ds_meta_data.tags.split(","))
+        ]
+
+    def filter_by_properties(self, datasets, current_dataset):
+        """
+        Filters materials datasets that measure similar properties.
+
+        Args:
+            datasets: List of materials datasets to filter
+            current_dataset: Reference materials dataset
+
+        Returns:
+            Filtered list of materials datasets
+        """
+        current_properties = {prop.strip().lower() for prop in current_dataset.get_unique_properties()}
+
+        if not current_properties:
+            return []
+
+        return [
+            ds for ds in datasets
+            if any(prop.strip().lower() in current_properties for prop in ds.get_unique_properties())
+        ]

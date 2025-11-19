@@ -72,32 +72,6 @@ def create_dataset():
             logger.exception(f"Exception while create dataset data in local {exc}")
             return jsonify({"Exception while create dataset data in local: ": str(exc)}), 400
 
-<<<<<<< HEAD
-        data = {}
-        try:
-            zenodo_response_json = zenodo_service.create_new_deposition(dataset)
-            response_data = json.dumps(zenodo_response_json)
-            data = json.loads(response_data)
-        except Exception as exc:
-            data = {}
-            logger.exception(f"Exception while create dataset data in Zenodo {exc}")
-
-        if data.get("conceptrecid"):
-            deposition_id = data.get("id")
-
-            dataset_service.update_dsmetadata(dataset.ds_meta_data_id, deposition_id=deposition_id)
-
-            try:
-                for feature_model in dataset.feature_models:
-                    zenodo_service.upload_file(dataset, deposition_id, feature_model)
-
-                zenodo_service.publish_deposition(deposition_id)
-                deposition_doi = zenodo_service.get_doi(deposition_id)
-                dataset_service.update_dsmetadata(dataset.ds_meta_data_id, dataset_doi=deposition_doi)
-            except Exception as e:
-                msg = f"Error uploading feature models or updating DOI: {e}"
-                return jsonify({"message": msg}), 200
-=======
         if USE_FAKENODO:
             data = {}
             try:
@@ -161,7 +135,6 @@ def create_dataset():
                 except Exception as e:
                     msg = f"it has not been possible upload feature models in Zenodo and update the DOI: {e}"
                     return jsonify({"message": msg}), 200
->>>>>>> develop
 
         file_path = current_user.temp_folder()
         if os.path.exists(file_path) and os.path.isdir(file_path):
@@ -415,9 +388,6 @@ def view_top_global():
         metric=metric,
         days=days,
         limit=limit,
-<<<<<<< HEAD
-    )
-=======
     )
 
 
@@ -456,6 +426,9 @@ def view_materials_dataset(dataset_id):
     records = all_records[start:end]
     total_pages = (total + per_page - 1) // per_page
 
+    # Get recommended datasets
+    recommended_datasets = materials_dataset_service.get_recommendations(dataset_id, limit=5)
+
     return render_template(
         "dataset/view_materials_dataset.html",
         dataset=dataset,
@@ -463,7 +436,8 @@ def view_materials_dataset(dataset_id):
         page=page,
         per_page=per_page,
         total=total,
-        total_pages=total_pages
+        total_pages=total_pages,
+        recommended_datasets=recommended_datasets
     )
 
 
@@ -568,4 +542,63 @@ def search_materials(dataset_id):
         records=records,
         search_term=search_term
     )
->>>>>>> develop
+
+
+@dataset_bp.route("/materials/<int:dataset_id>/recommendations")
+def materials_dataset_recommendations(dataset_id):
+    """API to return filtered and paginated recommended materials datasets (AJAX)."""
+    page = request.args.get("page", 1, type=int)
+    filter_type = request.args.get("filter_type", None, type=str)
+
+    current_dataset = materials_dataset_repository.get_by_id(dataset_id)
+    if not current_dataset:
+        abort(404)
+
+    query = materials_dataset_service.get_all_except(dataset_id)
+
+    # Apply filters using service methods
+    if filter_type == "authors":
+        query = materials_dataset_service.filter_by_authors(query, current_dataset)
+    elif filter_type == "tags":
+        query = materials_dataset_service.filter_by_tags(query, current_dataset)
+    elif filter_type == "properties":
+        query = materials_dataset_service.filter_by_properties(query, current_dataset)
+
+    # Pagination
+    per_page = 5
+    start = (page - 1) * per_page
+    end = start + per_page
+    paginated = query[start:end]
+    total_pages = (len(query) + per_page - 1) // per_page
+
+    html = render_template(
+        "dataset/materials_recommendations_table.html",
+        recommended_datasets=paginated
+    )
+
+    return jsonify({
+        "html": html,
+        "page": page,
+        "total_pages": total_pages
+    })
+
+
+@dataset_bp.route("/materials/<int:dataset_id>/view_csv", methods=["GET"])
+def view_materials_csv(dataset_id):
+    """View CSV file content for a MaterialsDataset"""
+    dataset = materials_dataset_repository.get_by_id(dataset_id)
+
+    if not dataset:
+        abort(404)
+
+    if not dataset.csv_file_path or not os.path.exists(dataset.csv_file_path):
+        return jsonify({"error": "CSV file not found"}), 404
+
+    try:
+        with open(dataset.csv_file_path, "r") as f:
+            content = f.read()
+
+        return jsonify({"content": content})
+    except Exception as e:
+        logger.exception(f"Error reading CSV file: {e}")
+        return jsonify({"error": f"Error reading file: {str(e)}"}), 500
