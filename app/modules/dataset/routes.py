@@ -21,7 +21,8 @@ from flask_login import current_user, login_required
 
 from app.modules.dataset import dataset_bp
 from app.modules.dataset.forms import DataSetForm
-from app.modules.dataset.models import DSDownloadRecord
+from app.modules.dataset.models import DSDownloadRecord, MaterialsDataset, MaterialRecord
+from app.modules.dataset.repositories import MaterialsDatasetRepository, MaterialRecordRepository
 from app.modules.dataset.services import (
     AuthorService,
     DataSetService,
@@ -29,16 +30,25 @@ from app.modules.dataset.services import (
     DSDownloadRecordService,
     DSMetaDataService,
     DSViewRecordService,
+    MaterialsDatasetService,
 )
+from app.modules.fakenodo.services import FakenodoService
 from app.modules.zenodo.services import ZenodoService
+from core.configuration.configuration import USE_FAKENODO
 
 logger = logging.getLogger(__name__)
 dataset_service = DataSetService()
 author_service = AuthorService()
 dsmetadata_service = DSMetaDataService()
-zenodo_service = ZenodoService()
+fakenodo_service = FakenodoService()
+zenodo_service= ZenodoService()
 doi_mapping_service = DOIMappingService()
 ds_view_record_service = DSViewRecordService()
+
+# MaterialsDataset services
+materials_dataset_service = MaterialsDatasetService()
+materials_dataset_repository = MaterialsDatasetRepository()
+material_record_repository = MaterialRecordRepository()
 
 
 # ==============================
@@ -62,6 +72,7 @@ def create_dataset():
             logger.exception(f"Exception while create dataset data in local {exc}")
             return jsonify({"Exception while create dataset data in local: ": str(exc)}), 400
 
+<<<<<<< HEAD
         data = {}
         try:
             zenodo_response_json = zenodo_service.create_new_deposition(dataset)
@@ -86,6 +97,71 @@ def create_dataset():
             except Exception as e:
                 msg = f"Error uploading feature models or updating DOI: {e}"
                 return jsonify({"message": msg}), 200
+=======
+        if USE_FAKENODO:
+            data = {}
+            try:
+                fakenodo_response_json = fakenodo_service.create_new_deposition(dataset)
+                response_data = json.dumps(fakenodo_response_json)
+                data = json.loads(response_data)
+            except Exception as exc:
+                data = {}
+                fakenodo_response_json = {}
+                logger.exception(f"Exception while create dataset data in Fakenodo {exc}")
+
+            if data.get("conceptrecid"):
+                deposition_id = data.get("id")
+
+                # update dataset with deposition id in Fakenodo
+                dataset_service.update_dsmetadata(dataset.ds_meta_data_id, deposition_id=deposition_id)
+
+                try:
+                    # iterate for each feature model (one feature model = one request to Fakenodo)
+                    for feature_model in dataset.feature_models:
+                        fakenodo_service.upload_file(dataset, deposition_id, feature_model)
+
+                    # publish deposition
+                    fakenodo_service.publish_deposition(deposition_id)
+
+                    # update DOI
+                    deposition_doi = fakenodo_service.get_doi(deposition_id)
+                    dataset_service.update_dsmetadata(dataset.ds_meta_data_id, dataset_doi=deposition_doi)
+                except Exception as e:
+                    msg = f"it has not been possible upload feature models in Fakenodo and update the DOI: {e}"
+                    return jsonify({"message": msg}), 200
+        else:
+            # send dataset as deposition to Zenodo
+            data = {}
+            try:
+                zenodo_response_json = zenodo_service.create_new_deposition(dataset)
+                response_data = json.dumps(zenodo_response_json)
+                data = json.loads(response_data)
+            except Exception as exc:
+                data = {}
+                zenodo_response_json = {}
+                logger.exception(f"Exception while create dataset data in Zenodo {exc}")
+
+            if data.get("conceptrecid"):
+                deposition_id = data.get("id")
+
+                # update dataset with deposition id in Zenodo
+                dataset_service.update_dsmetadata(dataset.ds_meta_data_id, deposition_id=deposition_id)
+
+                try:
+                    # iterate for each feature model (one feature model = one request to Zenodo)
+                    for feature_model in dataset.feature_models:
+                        zenodo_service.upload_file(dataset, deposition_id, feature_model)
+
+                    # publish deposition
+                    zenodo_service.publish_deposition(deposition_id)
+
+                    # update DOI
+                    deposition_doi = zenodo_service.get_doi(deposition_id)
+                    dataset_service.update_dsmetadata(dataset.ds_meta_data_id, dataset_doi=deposition_doi)
+                except Exception as e:
+                    msg = f"it has not been possible upload feature models in Zenodo and update the DOI: {e}"
+                    return jsonify({"message": msg}), 200
+>>>>>>> develop
 
         file_path = current_user.temp_folder()
         if os.path.exists(file_path) and os.path.isdir(file_path):
@@ -93,7 +169,7 @@ def create_dataset():
 
         return jsonify({"message": "Everything works!"}), 200
 
-    return render_template("dataset/upload_dataset.html", form=form)
+    return render_template("dataset/upload_dataset.html", form=form, use_fakenodo=USE_FAKENODO)
 
 
 @dataset_bp.route("/dataset/list", methods=["GET", "POST"])
@@ -112,7 +188,7 @@ def upload():
     file = request.files["file"]
     temp_folder = current_user.temp_folder()
 
-    if not file or not file.filename.endswith(".uvl"):
+    if not file or not file.filename.endswith(".csv"):
         return jsonify({"message": "No valid file"}), 400
 
     if not os.path.exists(temp_folder):
@@ -339,4 +415,157 @@ def view_top_global():
         metric=metric,
         days=days,
         limit=limit,
+<<<<<<< HEAD
     )
+=======
+    )
+
+
+# ==================== MaterialsDataset Routes ====================
+
+@dataset_bp.route("/materials/list", methods=["GET"])
+@login_required
+def list_materials_datasets():
+    """List all MaterialsDatasets for the current user"""
+    datasets = materials_dataset_repository.get_by_user(current_user.id)
+    return render_template(
+        "dataset/list_materials_datasets.html",
+        datasets=datasets
+    )
+
+
+@dataset_bp.route("/materials/<int:dataset_id>", methods=["GET"])
+def view_materials_dataset(dataset_id):
+    """View details of a MaterialsDataset (public view)"""
+    dataset = materials_dataset_repository.get_by_id(dataset_id)
+
+    if not dataset:
+        abort(404)
+
+    # Get pagination parameters
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+
+    # Get records for this dataset
+    all_records = material_record_repository.get_by_dataset(dataset_id)
+
+    # Manual pagination
+    total = len(all_records)
+    start = (page - 1) * per_page
+    end = start + per_page
+    records = all_records[start:end]
+    total_pages = (total + per_page - 1) // per_page
+
+    return render_template(
+        "dataset/view_materials_dataset.html",
+        dataset=dataset,
+        records=records,
+        page=page,
+        per_page=per_page,
+        total=total,
+        total_pages=total_pages
+    )
+
+
+@dataset_bp.route("/materials/<int:dataset_id>/upload", methods=["GET", "POST"])
+@login_required
+def upload_materials_csv(dataset_id):
+    """Upload CSV file to a MaterialsDataset"""
+    dataset = materials_dataset_repository.get_by_id(dataset_id)
+
+    if not dataset:
+        abort(404)
+
+    # Check if user owns this dataset
+    if dataset.user_id != current_user.id:
+        abort(403)
+
+    if request.method == "POST":
+        # Check if file is in request
+        if 'file' not in request.files:
+            return jsonify({"message": "No file part in the request"}), 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"message": "No file selected"}), 400
+
+        if file and file.filename.endswith('.csv'):
+            # Save file temporarily
+            from werkzeug.utils import secure_filename
+            filename = secure_filename(file.filename)
+            working_dir = os.getenv("WORKING_DIR", "")
+            temp_dir = os.path.join(working_dir, "temp")
+            os.makedirs(temp_dir, exist_ok=True)
+
+            temp_path = os.path.join(temp_dir, filename)
+            file.save(temp_path)
+
+            # Parse CSV and create records
+            result = materials_dataset_service.create_material_records_from_csv(dataset, temp_path)
+
+            # Update csv_file_path if successful
+            if result['success']:
+                from app import db
+                dataset.csv_file_path = temp_path
+                db.session.commit()
+
+            # Clean up temp file if parsing failed
+            if not result['success'] and os.path.exists(temp_path):
+                os.remove(temp_path)
+
+            if result['success']:
+                return jsonify({
+                    "message": "CSV uploaded and parsed successfully",
+                    "records_created": result['records_created'],
+                    "dataset_id": dataset.id
+                }), 200
+            else:
+                return jsonify({
+                    "message": "CSV parsing failed",
+                    "error": result['error']
+                }), 400
+        else:
+            return jsonify({"message": "File must be a CSV"}), 400
+
+    return render_template(
+        "dataset/upload_materials_csv.html",
+        dataset=dataset
+    )
+
+
+@dataset_bp.route("/materials/<int:dataset_id>/statistics", methods=["GET"])
+def materials_dataset_statistics(dataset_id):
+    """View statistics for a MaterialsDataset (public view)"""
+    dataset = materials_dataset_repository.get_by_id(dataset_id)
+
+    if not dataset:
+        abort(404)
+
+    return render_template(
+        "dataset/materials_statistics.html",
+        dataset=dataset
+    )
+
+
+@dataset_bp.route("/materials/<int:dataset_id>/search", methods=["GET"])
+def search_materials(dataset_id):
+    """Search materials in a dataset (public view)"""
+    dataset = materials_dataset_repository.get_by_id(dataset_id)
+
+    if not dataset:
+        abort(404)
+
+    search_term = request.args.get('q', '', type=str)
+
+    if search_term:
+        records = material_record_repository.search_materials(dataset_id, search_term)
+    else:
+        records = []
+
+    return render_template(
+        "dataset/search_materials.html",
+        dataset=dataset,
+        records=records,
+        search_term=search_term
+    )
+>>>>>>> develop
