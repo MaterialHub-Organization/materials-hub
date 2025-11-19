@@ -70,12 +70,13 @@ El hook `commit-msg` valida que tu mensaje siga **Conventional Commits**:
 feat: add user authentication
 fix: resolve database connection error
 docs: update README with setup instructions
-refactor: improve dataset service performance
 
 ❌ INVÁLIDO:
 added some stuff
 fixed bug
 update
+refactor: improve dataset service   (refactor no está permitido)
+test: add unit tests                (test no está permitido)
 ```
 
 ---
@@ -94,25 +95,27 @@ update
 
 ### Tipos Permitidos
 
+Este proyecto usa un conjunto simplificado de tipos de commit:
+
 | Tipo | Uso | Ejemplo |
 |------|-----|---------|
 | `feat` | Nueva funcionalidad | `feat: add materials dataset export` |
 | `fix` | Corrección de bug | `fix: resolve CSV parsing error` |
 | `docs` | Documentación | `docs: add API documentation` |
-| `style` | Formato (no afecta lógica) | `style: format code with black` |
-| `refactor` | Refactorización | `refactor: simplify dataset service` |
-| `test` | Tests | `test: add unit tests for auth module` |
-| `chore` | Tareas de mantenimiento | `chore: update dependencies` |
-| `perf` | Mejoras de rendimiento | `perf: optimize database queries` |
-| `ci` | CI/CD | `ci: add GitHub Actions workflow` |
-| `build` | Build system | `build: update Docker configuration` |
-| `revert` | Revertir commit | `revert: revert "add feature X"` |
+
+**Nota:** Solo estos tres tipos están permitidos. Cualquier otro tipo será rechazado por el hook de commit.
 
 ### Ejemplos Completos
 
 ```bash
-# Simple
+# Nueva funcionalidad
 git commit -m "feat: add CSV export functionality"
+
+# Corrección de bug
+git commit -m "fix: resolve database connection timeout"
+
+# Documentación
+git commit -m "docs: update API documentation"
 
 # Con descripción más larga
 git commit -m "fix: resolve database connection timeout
