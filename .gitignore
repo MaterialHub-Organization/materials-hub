@@ -26,6 +26,7 @@ __pycache__/
 *.log
 app.log
 deployments.log
+logs/*.log*
 .coverage
 htmlcov/
 .pytest_cache/
