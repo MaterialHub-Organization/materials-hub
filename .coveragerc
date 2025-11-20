@@ -1,0 +1,85 @@
+# Configuration file for coverage.py
+# See https://coverage.readthedocs.io/en/latest/config.html
+
+[run]
+# Measure coverage for these directories
+source = app, rosemary, core
+
+# Omit these files/directories from coverage
+omit =
+    */tests/*
+    */test_*.py
+    */__pycache__/*
+    */venv/*
+    */env/*
+    */.venv/*
+    */migrations/*
+    */node_modules/*
+    */static/*
+    */templates/*
+    app/conftest.py
+    app/modules/conftest.py
+
+# Run branch coverage (more thorough)
+branch = True
+
+# Measure coverage in parallel mode (for pytest-xdist)
+parallel = True
+
+[report]
+# Set minimum coverage percentage to fail
+fail_under = 70
+
+# Show lines that weren't covered
+show_missing = True
+
+# Ignore errors for missing source files
+ignore_errors = True
+
+# Precision for coverage percentages
+precision = 2
+
+# Sort by coverage percentage
+sort = Cover
+
+# Exclude lines with these patterns from coverage
+exclude_lines =
+    # Standard pragma
+    pragma: no cover
+
+    # Don't complain about missing debug code
+    def __repr__
+    def __str__
+
+    # Don't complain if tests don't hit defensive assertion code
+    raise AssertionError
+    raise NotImplementedError
+
+    # Don't complain if non-runnable code isn't run
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+
+    # Don't complain about abstract methods
+    @abstractmethod
+    @abc.abstractmethod
+
+    # Don't complain about pass statements
+    pass
+
+    # Don't complain about ellipsis
+    \.\.\.
+
+[html]
+# Directory for HTML coverage report
+directory = htmlcov
+
+# Title for HTML report
+title = Materials Hub Coverage Report
+
+[xml]
+# Output file for XML coverage report (for CI/CD)
+output = coverage.xml
+
+[json]
+# Output file for JSON coverage report
+output = coverage.json
