@@ -19,11 +19,6 @@ from app.modules.dataset.repositories import (
     DSViewRecordRepository,
 )
 from app.modules.featuremodel.repositories import FeatureModelRepository, FMMetaDataRepository
-from app.modules.hubfile.repositories import (
-    HubfileDownloadRecordRepository,
-    HubfileRepository,
-    HubfileViewRecordRepository,
-)
 from core.services.BaseService import BaseService
 
 logger = logging.getLogger(__name__)
@@ -45,6 +40,13 @@ class DataSetService(BaseService):
         self.dsmetadata_repository = DSMetaDataRepository()
         self.fmmetadata_repository = FMMetaDataRepository()
         self.dsdownloadrecord_repository = DSDownloadRecordRepository()
+
+        # Importación diferida para evitar ciclos de importación
+        from app.modules.hubfile.repositories import (
+            HubfileDownloadRecordRepository,
+            HubfileRepository,
+            HubfileViewRecordRepository,
+        )
         self.hubfiledownloadrecord_repository = HubfileDownloadRecordRepository()
         self.hubfilerepository = HubfileRepository()
         self.dsviewrecord_repostory = DSViewRecordRepository()

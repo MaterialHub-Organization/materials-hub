@@ -34,6 +34,10 @@ def create_app(config_name="development"):
     module_manager = ModuleManager(app)
     module_manager.register_modules()
 
+    # Inicializar APIs después de registrar módulos
+    from app.modules.dataset import init_api
+    init_api()
+
     # Register login manager
     from flask_login import LoginManager
 

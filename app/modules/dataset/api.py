@@ -6,7 +6,6 @@ from werkzeug.utils import secure_filename
 
 from app import db
 from app.modules.dataset.models import DataSet, MaterialsDataset, MaterialRecord, DSMetaData
-from app.modules.dataset.services import MaterialsDatasetService
 from app.modules.dataset.repositories import MaterialsDatasetRepository, MaterialRecordRepository
 from core.resources.generic_resource import create_resource
 from core.serialisers.serializer import Serializer
@@ -65,6 +64,8 @@ class MaterialsDatasetUploadResource(Resource):
     """Endpoint for uploading CSV files to MaterialsDataset"""
 
     def __init__(self):
+        # Importación diferida para evitar ciclos de importación
+        from app.modules.dataset.services import MaterialsDatasetService
         self.service = MaterialsDatasetService()
         self.repository = MaterialsDatasetRepository()
 
@@ -194,35 +195,35 @@ class MaterialsDatasetStatisticsResource(Resource):
         }, 200
 
 
-def init_blueprint_api(api):
+def init_blueprint_api(api_instance):
     """Function to register resources with the provided Flask-RESTful Api instance."""
     # Existing UVL dataset endpoints
-    api.add_resource(DataSetResource, "/api/v1/datasets/", endpoint="datasets")
-    api.add_resource(DataSetResource, "/api/v1/datasets/<int:id>", endpoint="dataset")
+    api_instance.add_resource(DataSetResource, "/api/v1/datasets/", endpoint="datasets")
+    api_instance.add_resource(DataSetResource, "/api/v1/datasets/<int:id>", endpoint="dataset")
 
     # MaterialsDataset CRUD endpoints
-    api.add_resource(MaterialsDatasetResource, "/api/v1/materials-datasets/", endpoint="materials_datasets")
-    api.add_resource(MaterialsDatasetResource, "/api/v1/materials-datasets/<int:id>", endpoint="materials_dataset")
+    api_instance.add_resource(MaterialsDatasetResource, "/api/v1/materials-datasets/", endpoint="materials_datasets")
+    api_instance.add_resource(MaterialsDatasetResource, "/api/v1/materials-datasets/<int:id>", endpoint="materials_dataset")
 
     # MaterialsDataset custom endpoints
-    api.add_resource(
+    api_instance.add_resource(
         MaterialsDatasetUploadResource,
         "/api/v1/materials-datasets/<int:id>/upload",
         endpoint="api_materials_dataset_upload"
     )
-    api.add_resource(
+    api_instance.add_resource(
         MaterialsDatasetStatisticsResource,
         "/api/v1/materials-datasets/<int:id>/statistics",
         endpoint="api_materials_dataset_statistics"
     )
 
     # MaterialRecord endpoints
-    api.add_resource(
+    api_instance.add_resource(
         MaterialRecordsResource,
         "/api/v1/materials-datasets/<int:dataset_id>/records",
         endpoint="api_material_records"
     )
-    api.add_resource(
+    api_instance.add_resource(
         MaterialRecordsSearchResource,
         "/api/v1/materials-datasets/<int:dataset_id>/records/search",
         endpoint="api_material_records_search"
