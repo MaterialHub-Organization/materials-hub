@@ -450,7 +450,9 @@ def test_check_uvl_endpoint_with_valid_file(test_client):
     """
     with patch("app.modules.flamapy.routes.HubfileService") as mock_hubfile_service, patch(
         "app.modules.flamapy.routes.FileStream"
-    ) as _mock_file_stream,  # noqa: F841 patch("app.modules.flamapy.routes.UVLCustomLexer") as mock_lexer, patch(
+    ) as _mock_file_stream, patch(  # noqa: F841
+        "app.modules.flamapy.routes.UVLCustomLexer"
+    ) as mock_lexer, patch(
         "app.modules.flamapy.routes.UVLPythonParser"
     ) as mock_parser, patch(
         "app.modules.flamapy.routes.CommonTokenStream"
