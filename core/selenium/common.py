@@ -54,7 +54,27 @@ def initialize_driver():
 
     elif driver_name == "firefox":
         options = webdriver.FirefoxOptions()
-        service = FirefoxService(GeckoDriverManager().install())
+
+        # Try to use system geckodriver first to avoid internet downloads
+        geckodriver_paths = [
+            "/snap/bin/geckodriver",  # Snap installation
+            "/usr/local/bin/geckodriver",  # Manual installation
+            "/usr/bin/geckodriver",  # System package
+        ]
+
+        geckodriver_path = None
+        for path in geckodriver_paths:
+            if os.path.exists(path):
+                geckodriver_path = path
+                break
+
+        if geckodriver_path:
+            # Use system geckodriver directly
+            service = FirefoxService(executable_path=geckodriver_path)
+        else:
+            # Fall back to webdriver_manager
+            service = FirefoxService(GeckoDriverManager().install())
+
         driver = webdriver.Firefox(service=service, options=options)
 
     else:

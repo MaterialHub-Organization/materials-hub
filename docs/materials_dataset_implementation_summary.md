@@ -390,6 +390,5 @@ El sistema está **listo para integración** con:
 
 ---
 
-**Autor:** Claude Code
 **Fecha:** 2025-01-13
 **Versión:** 1.0
