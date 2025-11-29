@@ -31,34 +31,30 @@ def test_app():
         yield test_app
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def test_client(test_app):
     with test_app.test_client() as testing_client:
         with test_app.app_context():
-            print("TESTING SUITE (2): Blueprints registrados:", test_app.blueprints)
+            # Limpiar sesión antes de crear nuevos datos
+            db.session.expire_all()
+            db.session.remove()
 
-            db.drop_all()
-            db.create_all()
-            """
-            The test suite always includes the following user in order to avoid repetition
-            of its creation
-            """
-            user_test = User(email="test@example.com", password="test1234")
-            db.session.add(user_test)
-            db.session.commit()
+            # Crear usuario de test si no existe
+            user_test = User.query.filter_by(email="test@example.com").first()
+            if not user_test:
+                user_test = User(email="test@example.com", password="test1234")
+                db.session.add(user_test)
+                db.session.commit()
 
-            # Create user profile for the test user
-            profile = UserProfile(user_id=user_test.id, name="Test", surname="User")
-            db.session.add(profile)
-            db.session.commit()
+                # Create user profile for the test user
+                profile = UserProfile(user_id=user_test.id, name="Test", surname="User")
+                db.session.add(profile)
+                db.session.commit()
 
-            print("Rutas registradas:")
-            for rule in test_app.url_map.iter_rules():
-                print(rule)
             yield testing_client
 
-            # Cleanup optimizado: solo cerrar sesión sin drop tables
-            # Las tablas se eliminan automáticamente al final de la sesión de pytest
+            # Cleanup: cerrar sesión
+            db.session.expire_all()
             db.session.remove()
 
 
@@ -76,117 +72,204 @@ def clean_database():
 @pytest.fixture(scope="function")
 def integration_test_data(test_client):
     """Create test data for integration tests."""
-    with test_client.application.app_context():
-        # Crear usuario y perfil
-        user1 = User(email="user1@example.com", password="test1234")
-        db.session.add(user1)
-        db.session.flush()  # Flush para obtener el ID sin commit
+    # Limpiar datos residuales antes de crear nuevos (por si quedaron de tests anteriores)
+    # Primero identificar los datasets de test
+    ds_meta_ids_subq = db.session.query(DSMetaData.id).filter(
+        db.or_(DSMetaData.dataset_doi.like("10.1234/%"), DSMetaData.tags.like("%testing%"))
+    ).scalar_subquery()
+    test_dataset_ids_subq = db.session.query(DataSet.id).filter(
+        DataSet.ds_meta_data_id.in_(ds_meta_ids_subq)
+    ).scalar_subquery()
 
-        profile1 = UserProfile(user_id=user1.id, name="User", surname="One")
-        db.session.add(profile1)
+    # Borrar TODOS los records asociados con datasets de test
+    db.session.query(DSDownloadRecord).filter(DSDownloadRecord.dataset_id.in_(test_dataset_ids_subq)).delete(
+        synchronize_session=False
+    )
+    db.session.query(DSViewRecord).filter(DSViewRecord.dataset_id.in_(test_dataset_ids_subq)).delete(
+        synchronize_session=False
+    )
 
-        # Crear metadatos de datasets
-        ds_meta1 = DSMetaData(
-            title="Machine Learning Dataset",
-            description="A dataset about machine learning patterns",
-            publication_type=PublicationType.CONFERENCE_PAPER,
-            dataset_doi="10.1234/ml.2024.001",
-            tags="machine learning, patterns, software",
-        )
-        ds_meta2 = DSMetaData(
-            title="Software Patterns Dataset",
-            description="A dataset about software design patterns",
-            publication_type=PublicationType.JOURNAL_ARTICLE,
-            dataset_doi="10.1234/patterns.2024.002",
-            tags="patterns, design, software",
-        )
-        ds_meta3 = DSMetaData(
-            title="Unsynchronized Dataset",
-            description="A dataset without DOI for testing",
-            publication_type=PublicationType.WORKING_PAPER,
-            dataset_doi=None,
-            tags="testing, unsynchronized",
-        )
-        db.session.add_all([ds_meta1, ds_meta2, ds_meta3])
-        db.session.flush()
+    # Borrar autores
+    db.session.query(Author).filter(Author.affiliation.in_(["MIT", "Stanford"])).delete(synchronize_session=False)
 
-        # Crear datasets
-        dataset1 = DataSet(user_id=user1.id, ds_meta_data_id=ds_meta1.id, created_at=datetime.now(timezone.utc))
-        dataset2 = DataSet(user_id=user1.id, ds_meta_data_id=ds_meta2.id, created_at=datetime.now(timezone.utc))
-        dataset3 = DataSet(user_id=user1.id, ds_meta_data_id=ds_meta3.id, created_at=datetime.now(timezone.utc))
-        db.session.add_all([dataset1, dataset2, dataset3])
-        db.session.flush()
+    # Borrar FeatureModels que dependen de FMMetaData
+    fm_meta_ids_subq = db.session.query(FMMetaData.id).filter(
+        FMMetaData.uvl_filename.in_(["model1.uvl", "model2.uvl", "model3.uvl"])
+    ).scalar_subquery()
+    db.session.query(FeatureModel).filter(FeatureModel.fm_meta_data_id.in_(fm_meta_ids_subq)).delete(
+        synchronize_session=False
+    )
 
-        # Crear metadatos de feature models
-        fm_meta1 = FMMetaData(
-            uvl_filename="model1.uvl",
-            title="ML Feature Model",
-            description="Feature model for machine learning",
-            publication_type=PublicationType.CONFERENCE_PAPER,
-            publication_doi="10.1234/fm.2024.001",
-            tags="machine learning, features",
-        )
-        fm_meta2 = FMMetaData(
-            uvl_filename="model2.uvl",
-            title="Software Patterns Feature Model",
-            description="Feature model for software patterns",
-            publication_type=PublicationType.JOURNAL_ARTICLE,
-            publication_doi="10.1234/fm.2024.002",
-            tags="patterns, design, software",
-        )
-        fm_meta3 = FMMetaData(
-            uvl_filename="model3.uvl",
-            title="Unsync Feature Model",
-            description="Feature model for unsynchronized dataset",
-            publication_type=PublicationType.WORKING_PAPER,
-            publication_doi=None,
-            tags="testing, unsynchronized",
-        )
-        db.session.add_all([fm_meta1, fm_meta2, fm_meta3])
-        db.session.flush()
+    # Borrar DataSets
+    db.session.query(DataSet).filter(DataSet.ds_meta_data_id.in_(ds_meta_ids_subq)).delete(synchronize_session=False)
 
-        # Crear feature models
-        fm1 = FeatureModel(data_set_id=dataset1.id, fm_meta_data_id=fm_meta1.id)
-        fm2 = FeatureModel(data_set_id=dataset2.id, fm_meta_data_id=fm_meta2.id)
-        fm3 = FeatureModel(data_set_id=dataset3.id, fm_meta_data_id=fm_meta3.id)
-        db.session.add_all([fm1, fm2, fm3])
+    # Ahora borrar los metadatos
+    db.session.query(FMMetaData).filter(FMMetaData.uvl_filename.in_(["model1.uvl", "model2.uvl", "model3.uvl"])).delete(
+        synchronize_session=False
+    )
+    db.session.query(DSMetaData).filter(
+        db.or_(DSMetaData.dataset_doi.like("10.1234/%"), DSMetaData.tags.like("%testing%"))
+    ).delete(synchronize_session=False)
 
-        # Crear autores
-        author1 = Author(name="Jane Smith", affiliation="MIT", ds_meta_data_id=ds_meta1.id)
-        author2 = Author(name="John Doe", affiliation="Stanford", ds_meta_data_id=ds_meta1.id)
-        db.session.add_all([author1, author2])
+    # Finalmente borrar usuario y perfil
+    db.session.query(UserProfile).filter(UserProfile.name == "User", UserProfile.surname == "One").delete(
+        synchronize_session=False
+    )
+    db.session.query(User).filter(User.email == "user1@example.com").delete(synchronize_session=False)
+    db.session.commit()
 
-        # Crear registros de descarga y visualización
-        download_record = DSDownloadRecord(
-            user_id=user1.id,
-            dataset_id=dataset1.id,
-            download_date=datetime.now(timezone.utc),
-            download_cookie="test_cookie_123",
+    # Crear usuario y perfil
+    user1 = User(email="user1@example.com", password="test1234")
+    db.session.add(user1)
+    db.session.flush()  # Flush para obtener el ID
+
+    profile1 = UserProfile(user_id=user1.id, name="User", surname="One")
+    db.session.add(profile1)
+
+    # Crear metadatos de datasets
+    ds_meta1 = DSMetaData(
+        title="Machine Learning Dataset",
+        description="A dataset about machine learning patterns",
+        publication_type=PublicationType.CONFERENCE_PAPER,
+        dataset_doi="10.1234/ml.2024.001",
+        tags="machine learning, patterns, software",
+    )
+    ds_meta2 = DSMetaData(
+        title="Software Patterns Dataset",
+        description="A dataset about software design patterns",
+        publication_type=PublicationType.JOURNAL_ARTICLE,
+        dataset_doi="10.1234/patterns.2024.002",
+        tags="patterns, design, software",
+    )
+    ds_meta3 = DSMetaData(
+        title="Unsynchronized Dataset",
+        description="A dataset without DOI for testing",
+        publication_type=PublicationType.WORKING_PAPER,
+        dataset_doi=None,
+        tags="testing, unsynchronized",
+    )
+    db.session.add_all([ds_meta1, ds_meta2, ds_meta3])
+    db.session.flush()
+
+    # Crear datasets
+    dataset1 = DataSet(user_id=user1.id, ds_meta_data_id=ds_meta1.id, created_at=datetime.now(timezone.utc))
+    dataset2 = DataSet(user_id=user1.id, ds_meta_data_id=ds_meta2.id, created_at=datetime.now(timezone.utc))
+    dataset3 = DataSet(user_id=user1.id, ds_meta_data_id=ds_meta3.id, created_at=datetime.now(timezone.utc))
+    db.session.add_all([dataset1, dataset2, dataset3])
+    db.session.flush()
+
+    # Crear metadatos de feature models
+    fm_meta1 = FMMetaData(
+        uvl_filename="model1.uvl",
+        title="ML Feature Model",
+        description="Feature model for machine learning",
+        publication_type=PublicationType.CONFERENCE_PAPER,
+        publication_doi="10.1234/fm.2024.001",
+        tags="machine learning, features",
+    )
+    fm_meta2 = FMMetaData(
+        uvl_filename="model2.uvl",
+        title="Software Patterns Feature Model",
+        description="Feature model for software patterns",
+        publication_type=PublicationType.JOURNAL_ARTICLE,
+        publication_doi="10.1234/fm.2024.002",
+        tags="patterns, design, software",
+    )
+    fm_meta3 = FMMetaData(
+        uvl_filename="model3.uvl",
+        title="Unsync Feature Model",
+        description="Feature model for unsynchronized dataset",
+        publication_type=PublicationType.WORKING_PAPER,
+        publication_doi=None,
+        tags="testing, unsynchronized",
+    )
+    db.session.add_all([fm_meta1, fm_meta2, fm_meta3])
+    db.session.flush()
+
+    # Crear feature models
+    fm1 = FeatureModel(data_set_id=dataset1.id, fm_meta_data_id=fm_meta1.id)
+    fm2 = FeatureModel(data_set_id=dataset2.id, fm_meta_data_id=fm_meta2.id)
+    fm3 = FeatureModel(data_set_id=dataset3.id, fm_meta_data_id=fm_meta3.id)
+    db.session.add_all([fm1, fm2, fm3])
+
+    # Crear autores
+    author1 = Author(name="Jane Smith", affiliation="MIT", ds_meta_data_id=ds_meta1.id)
+    author2 = Author(name="John Doe", affiliation="Stanford", ds_meta_data_id=ds_meta1.id)
+    # Dataset2 también necesita un autor para aparecer en explore (join con authors)
+    author3_ds2 = Author(name="Jane Smith", affiliation="MIT", ds_meta_data_id=ds_meta2.id)
+    db.session.add_all([author1, author2, author3_ds2])
+
+    # Crear registros de descarga y visualización
+    download_record = DSDownloadRecord(
+        user_id=user1.id,
+        dataset_id=dataset1.id,
+        download_date=datetime.now(timezone.utc),
+        download_cookie="test_cookie_123",
+    )
+    view_record = DSViewRecord(
+        user_id=user1.id,
+        dataset_id=dataset1.id,
+        view_date=datetime.now(timezone.utc),
+        view_cookie="test_view_cookie_123",
+    )
+    db.session.add_all([download_record, view_record])
+
+    # Commit para que los datos estén disponibles
+    db.session.commit()
+
+    yield
+
+    # Cleanup: eliminar datos de test con synchronize_session=False para evitar errores
+    try:
+        # Expirar todos los objetos cached para evitar ObjectDeletedError
+        db.session.expire_all()
+
+        # Primero identificar los datasets de test
+        ds_meta_ids = db.session.query(DSMetaData.id).filter(
+            db.or_(DSMetaData.dataset_doi.like("10.1234/%"), DSMetaData.tags.like("%testing%"))
+        ).scalar_subquery()
+        test_dataset_ids = db.session.query(DataSet.id).filter(DataSet.ds_meta_data_id.in_(ds_meta_ids)).scalar_subquery()
+
+        # Borrar TODOS los records asociados con datasets de test (no solo los que tienen cookie de test)
+        db.session.query(DSDownloadRecord).filter(DSDownloadRecord.dataset_id.in_(test_dataset_ids)).delete(
+            synchronize_session=False
         )
-        view_record = DSViewRecord(
-            user_id=user1.id,
-            dataset_id=dataset1.id,
-            view_date=datetime.now(timezone.utc),
-            view_cookie="test_view_cookie_123",
+        db.session.query(DSViewRecord).filter(DSViewRecord.dataset_id.in_(test_dataset_ids)).delete(
+            synchronize_session=False
         )
-        db.session.add_all([download_record, view_record])
 
-        # Un solo commit para todos los datos
+        # Borrar autores
+        db.session.query(Author).filter(Author.affiliation.in_(["MIT", "Stanford"])).delete(synchronize_session=False)
+
+        # Borrar FeatureModels que dependen de FMMetaData
+        fm_meta_ids = db.session.query(FMMetaData.id).filter(
+            FMMetaData.uvl_filename.in_(["model1.uvl", "model2.uvl", "model3.uvl"])
+        ).scalar_subquery()
+        db.session.query(FeatureModel).filter(FeatureModel.fm_meta_data_id.in_(fm_meta_ids)).delete(
+            synchronize_session=False
+        )
+
+        # Borrar DataSets
+        db.session.query(DataSet).filter(DataSet.ds_meta_data_id.in_(ds_meta_ids)).delete(synchronize_session=False)
+
+        # Ahora borrar los metadatos
+        db.session.query(FMMetaData).filter(FMMetaData.uvl_filename.in_(["model1.uvl", "model2.uvl", "model3.uvl"])).delete(
+            synchronize_session=False
+        )
+        db.session.query(DSMetaData).filter(
+            db.or_(DSMetaData.dataset_doi.like("10.1234/%"), DSMetaData.tags.like("%testing%"))
+        ).delete(synchronize_session=False)
+
+        # Finalmente borrar usuario y perfil
+        db.session.query(UserProfile).filter(UserProfile.name == "User", UserProfile.surname == "One").delete(
+            synchronize_session=False
+        )
+        db.session.query(User).filter(User.email == "user1@example.com").delete(synchronize_session=False)
         db.session.commit()
-
-        yield
-
-        # Cleanup: eliminar datos creados para este test
-        db.session.query(DSDownloadRecord).delete()
-        db.session.query(DSViewRecord).delete()
-        db.session.query(FeatureModel).delete()
-        db.session.query(FMMetaData).delete()
-        db.session.query(Author).delete()
-        db.session.query(DataSet).delete()
-        db.session.query(DSMetaData).delete()
-        db.session.query(UserProfile).delete()
-        db.session.query(User).filter_by(email="user1@example.com").delete()
-        db.session.commit()
+    except Exception:
+        # Si hay algún error en el cleanup, hacer rollback e intentar cerrar sesión limpiamente
+        db.session.rollback()
+        db.session.remove()
 
 
 def login(test_client, email, password):
