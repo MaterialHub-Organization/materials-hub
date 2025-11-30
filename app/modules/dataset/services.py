@@ -417,7 +417,7 @@ class MaterialsDatasetService:
     ]
 
     def __init__(self):
-        from app.modules.dataset.repositories import MaterialsDatasetRepository, MaterialRecordRepository
+        from app.modules.dataset.repositories import MaterialRecordRepository, MaterialsDatasetRepository
 
         self.materials_dataset_repository = MaterialsDatasetRepository()
         self.material_record_repository = MaterialRecordRepository()

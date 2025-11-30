@@ -8,12 +8,12 @@ from app.modules.auth.models import User
 from app.modules.dataset.models import (
     Author,
     DataSet,
+    DataSource,
     DSMetaData,
     DSMetrics,
-    PublicationType,
-    MaterialsDataset,
     MaterialRecord,
-    DataSource,
+    MaterialsDataset,
+    PublicationType,
 )
 from app.modules.featuremodel.models import FeatureModel, FMMetaData
 from app.modules.hubfile.models import Hubfile

@@ -1,11 +1,12 @@
 import os
+
 from flask import request
 from flask_restful import Resource
 from werkzeug.utils import secure_filename
 
 from app import db
 from app.modules.dataset.models import DataSet, MaterialsDataset
-from app.modules.dataset.repositories import MaterialsDatasetRepository, MaterialRecordRepository
+from app.modules.dataset.repositories import MaterialRecordRepository, MaterialsDatasetRepository
 from core.resources.generic_resource import create_resource
 from core.serialisers.serializer import Serializer
 

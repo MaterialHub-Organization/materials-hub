@@ -1,9 +1,9 @@
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from flask_login import current_user
-from sqlalchemy import desc, func, and_
+from sqlalchemy import and_, desc, func
 
 from app.modules.dataset.models import (
     Author,
@@ -12,8 +12,8 @@ from app.modules.dataset.models import (
     DSDownloadRecord,
     DSMetaData,
     DSViewRecord,
-    MaterialsDataset,
     MaterialRecord,
+    MaterialsDataset,
 )
 from core.repositories.BaseRepository import BaseRepository
 
