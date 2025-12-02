@@ -4,7 +4,7 @@ import os
 from dotenv import load_dotenv
 from flask_login import current_user
 
-from app.modules.dataset.models import DataSet
+# UVL removed: from app.modules.dataset.models import DataSet
 from app.modules.fakenodo.models import Deposition
 from app.modules.fakenodo.repositories import DepositionRepository
 from app.modules.featuremodel.models import FeatureModel
