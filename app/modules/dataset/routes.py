@@ -30,15 +30,15 @@ from app.modules.dataset.services import (
     DSViewRecordService,
     MaterialsDatasetService,
 )
-# UVL removed: from app.modules.fakenodo.services import FakenodoService
-# UVL removed: from app.modules.zenodo.services import ZenodoService
+from app.modules.fakenodo.services import FakenodoService
+from app.modules.zenodo.services import ZenodoService
 from core.configuration.configuration import USE_FAKENODO
 
 logger = logging.getLogger(__name__)
 author_service = AuthorService()
 dsmetadata_service = DSMetaDataService()
-# UVL removed: fakenodo_service = FakenodoService()
-# UVL removed: zenodo_service = ZenodoService()
+fakenodo_service = FakenodoService()
+zenodo_service = ZenodoService()
 doi_mapping_service = DOIMappingService()
 ds_view_record_service = DSViewRecordService()
 
