@@ -31,6 +31,7 @@ from app.modules.dataset.repositories import (
     MaterialsDatasetRepository,
 )
 from app.modules.dataset.services import (
+    calculate_checksum_and_size,
     AuthorService,
     DOIMappingService,
     DSDownloadRecordService,
@@ -38,7 +39,6 @@ from app.modules.dataset.services import (
     DSViewRecordService,
     MaterialsDatasetService,
     SizeService,
-    calculate_checksum_and_size,
 )
 from core.services.BaseService import BaseService
 

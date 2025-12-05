@@ -6,7 +6,7 @@ import pytest
 
 from app import db
 from app.modules.dataset.models import PublicationType
-from app.modules.featuremodel.models import FeatureModel, FMMetaData
+from app.modules.featuremodel.models import FMMetaData, FeatureModel
 from app.modules.hubfile.models import (
     Hubfile,
     HubfileDownloadRecord,
