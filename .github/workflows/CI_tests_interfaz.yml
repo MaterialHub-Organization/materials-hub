@@ -4,14 +4,14 @@
 # Se ejecuta en todas las ramas para verificar flujos críticos de usuario.
 # ----------------------------------------------------------------------------
 
-name: Tests de Interfaz (Selenium)
+name: Tests de Interfaz
 
 on:
   push:
 
 jobs:
   tests-e2e:
-    name: Ejecutar tests de interfaz con Selenium
+    name: Selenium
     runs-on: ubuntu-24.04
 
     # Variables de entorno globales

@@ -11,7 +11,7 @@ on:
 
 jobs:
   tests-unitarios:
-    name: Ejecutar tests unitarios
+    name: Pytest
     runs-on: ubuntu-24.04
 
     # Variables de entorno globales compartidas entre servicios y pasos

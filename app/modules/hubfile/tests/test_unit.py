@@ -3,8 +3,6 @@ Unit tests for hubfile module.
 """
 
 import pytest
-from datetime import datetime, timezone
-from unittest.mock import Mock, patch
 
 from app import db
 from app.modules.featuremodel.models import FeatureModel, FMMetaData
