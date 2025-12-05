@@ -31,7 +31,6 @@ from app.modules.dataset.repositories import (
     MaterialsDatasetRepository,
 )
 from app.modules.dataset.services import (
-    calculate_checksum_and_size,
     AuthorService,
     DOIMappingService,
     DSDownloadRecordService,
@@ -39,6 +38,7 @@ from app.modules.dataset.services import (
     DSViewRecordService,
     MaterialsDatasetService,
     SizeService,
+    calculate_checksum_and_size,
 )
 from core.services.BaseService import BaseService
 
@@ -1734,8 +1734,9 @@ def test_materials_dataset_service_create_from_form(test_client):
 @pytest.mark.unit
 def test_regenerate_csv_for_dataset_success(test_client):
     """Test regenerate_csv_for_dataset() creates CSV file correctly"""
-    from app.modules.dataset.routes import regenerate_csv_for_dataset
     import os
+
+    from app.modules.dataset.routes import regenerate_csv_for_dataset
 
     user = User(email="test_regenerate_csv@example.com", password="test123")
     db.session.add(user)

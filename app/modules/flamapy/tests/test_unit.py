@@ -9,7 +9,6 @@ from app.modules.flamapy.models import Flamapy
 from app.modules.flamapy.repositories import FlamapyRepository
 from app.modules.flamapy.services import FlamapyService
 
-
 # ===========================
 # Flamapy Model Tests
 # ===========================
