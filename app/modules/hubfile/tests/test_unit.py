@@ -5,15 +5,22 @@ Unit tests for hubfile module.
 import pytest
 
 from app import db
-from app.modules.featuremodel.models import FeatureModel, FMMetaData
 from app.modules.dataset.models import PublicationType
-from app.modules.hubfile.models import Hubfile, HubfileViewRecord, HubfileDownloadRecord
+from app.modules.featuremodel.models import FeatureModel, FMMetaData
+from app.modules.hubfile.models import (
+    Hubfile,
+    HubfileDownloadRecord,
+    HubfileViewRecord,
+)
 from app.modules.hubfile.repositories import (
+    HubfileDownloadRecordRepository,
     HubfileRepository,
     HubfileViewRecordRepository,
-    HubfileDownloadRecordRepository,
 )
-from app.modules.hubfile.services import HubfileService, HubfileDownloadRecordService
+from app.modules.hubfile.services import (
+    HubfileDownloadRecordService,
+    HubfileService,
+)
 
 
 # ===========================

@@ -7,8 +7,8 @@ import pytest
 from app import db
 from app.modules.zenodo.models import Zenodo
 from core.repositories.BaseRepository import BaseRepository
-from core.services.BaseService import BaseService
 from core.seeders.BaseSeeder import BaseSeeder
+from core.services.BaseService import BaseService
 
 
 @pytest.mark.unit
