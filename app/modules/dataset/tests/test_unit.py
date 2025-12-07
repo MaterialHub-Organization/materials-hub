@@ -41,10 +41,7 @@ from app.modules.dataset.services import (
     calculate_checksum_and_size,
 )
 from core.services.BaseService import BaseService
-<<<<<<< HEAD
-=======
 from werkzeug.datastructures import ImmutableMultiDict
->>>>>>> feature/tests-selenium
 
 # ============================================================================
 # Tests for Dataset Repositories

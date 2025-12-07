@@ -1,7 +1,6 @@
 """
 Unit tests for hubfile module.
 """
-<<<<<<< HEAD
 
 import pytest
 
@@ -22,8 +21,6 @@ from app.modules.hubfile.services import (
     HubfileDownloadRecordService,
     HubfileService,
 )
-=======
->>>>>>> feature/tests-selenium
 
 # ===========================
 # Hubfile Model Tests

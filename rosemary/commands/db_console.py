@@ -16,7 +16,10 @@ def db_console():
     postgres_port = os.getenv("POSTGRES_PORT", "5432")
 
     # Build the command to connect to PostgreSQL
-    postgres_connect_cmd = f"PGPASSWORD={postgres_password} psql -h {postgres_hostname} -p {postgres_port} -U {postgres_user} -d {postgres_database}"
+    postgres_connect_cmd = (
+        f"PGPASSWORD={postgres_password} psql -h {postgres_hostname} "
+        f"-p {postgres_port} -U {postgres_user} -d {postgres_database}"
+    )
 
     # Execute the command
     try:
