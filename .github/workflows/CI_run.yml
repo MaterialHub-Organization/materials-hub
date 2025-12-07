@@ -1,7 +1,14 @@
 # ----------------------------------------------------------------------------
+<<<<<<<< HEAD:.github/workflows/CI_run.yml
 # Run Application Workflow
 # This workflow verifies that the application can start successfully.
 # It sets up the environment, database, and starts the Flask server.
+========
+# Run Tests Workflow
+# This workflow runs pytest on every push to any branch.
+# It sets up a MariaDB service container and configures environment
+# variables for both the service and the test environment.
+>>>>>>>> feature/tests-selenium:.github/workflows/CI_pytest.yml
 # ----------------------------------------------------------------------------
 
 name: Run Application
@@ -67,6 +74,7 @@ jobs:
           pip install -r requirements.txt
           pip install -e .
 
+<<<<<<<< HEAD:.github/workflows/CI_run.yml
       # Step 5: Initialize database
       - name: Setup database
         run: |
@@ -93,3 +101,41 @@ jobs:
           if [ -f flask.pid ]; then
             kill $(cat flask.pid) || true
           fi
+========
+      # Step 5: Run the pytest test suite (unit tests only)
+      - name: Run Unit Tests
+        run: pytest -m unit -v --cov=app --cov-report=term-missing --cov-report=xml --cov-report=html --cov-fail-under=25
+
+      # Step 6: Run integration tests (append to existing coverage)
+      - name: Run Integration Tests
+        run: pytest -m integration -v --cov=app --cov-append --cov-report=term-missing --cov-report=xml --cov-report=html
+
+      # Step 7: Upload coverage report to Codecov
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          file: ./coverage.xml
+          flags: unittests,integration
+          name: codecov-umbrella
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+      # Step 8: Upload HTML coverage report as artifact
+      - name: Upload coverage HTML report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report-${{ github.sha }}
+          path: htmlcov/
+          retention-days: 30
+
+      # Step 9: Generate coverage summary
+      - name: Coverage Summary
+        if: always()
+        run: |
+          echo "## Coverage Report" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          coverage report >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+>>>>>>>> feature/tests-selenium:.github/workflows/CI_pytest.yml
