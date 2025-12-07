@@ -1,49 +1,51 @@
 # ----------------------------------------------------------------------------
 # Publish image in Docker Hub Workflow
 # This workflow builds and pushes a Docker image to Docker Hub whenever
-# a new release is published on GitHub.
+# a new release is published on GitHub or when code is merged into main.
 # ----------------------------------------------------------------------------
 
 name: Publish image in Docker Hub
 
 on:
-  pull_request:
+  # Se dispara cuando hay push a main (por ejemplo, tras un merge)
+  push:
     branches:
       - main
+
+  # Se dispara también cuando se publica un release
   release:
-    # Trigger only when a release is published
     types: [published]
 
 jobs:
-  #push_to_registry:
   build-and-push:
     runs-on: ubuntu-24.04
 
     steps:
-      
-      # Step 1: Check out the repository code
+      # 1. Check out del repositorio
       - name: Check out the repo
-      - uses: actions/checkout@v5
+        uses: actions/checkout@v5
 
-      # 2. Calcular TAG e IMAGE según el tipo de evento
+      # 2. Calcular IMAGE, TAG y PUSH según el tipo de evento
       - name: Set image metadata
         id: meta
         run: |
           IMAGE=${{ secrets.DOCKER_USER }}/uvlhub
 
           if [ "${{ github.event_name }}" = "release" ]; then
+            # Si es un release, usamos el tag del release y hacemos push
             TAG=${{ github.event.release.tag_name }}
             PUSH=true
           else
-            TAG=pr-${{ github.event.number }}
-            PUSH=false
+            # Si es un push a main, usamos el SHA corto del commit
+            TAG=${GITHUB_SHA::7}
+            PUSH=true
           fi
 
           echo "IMAGE=$IMAGE" >> $GITHUB_OUTPUT
           echo "TAG=$TAG" >> $GITHUB_OUTPUT
           echo "PUSH=$PUSH" >> $GITHUB_OUTPUT
 
-      # 3. Login en Docker Hub SOLO si es un release
+      # 3. Login en Docker Hub (siempre que vayamos a hacer push)
       - name: Log in to Docker Hub
         if: steps.meta.outputs.PUSH == 'true'
         uses: docker/login-action@v3.6.0
@@ -51,7 +53,7 @@ jobs:
           username: ${{ secrets.DOCKER_USER }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # 4. Build de la imagen (siempre, en PR y en release)
+      # 4. Build de la imagen
       - name: Build Docker image
         env:
           IMAGE: ${{ steps.meta.outputs.IMAGE }}
@@ -63,8 +65,8 @@ jobs:
             -t $IMAGE:$TAG \
             -f docker/images/Dockerfile.prod .
 
-      # 5. Push de la imagen SOLO en release
-      - name: Push Docker image (release tag)
+      # 5. Push de la imagen
+      - name: Push Docker image
         if: steps.meta.outputs.PUSH == 'true'
         env:
           IMAGE: ${{ steps.meta.outputs.IMAGE }}
@@ -73,7 +75,7 @@ jobs:
           echo "Pushing image: $IMAGE:$TAG"
           docker push $IMAGE:$TAG
 
-      # 6. Tag y push de latest SOLO en release
+      # 6. Tag y push de latest (opcional, aquí lo hacemos siempre que haya push)
       - name: Tag and push latest
         if: steps.meta.outputs.PUSH == 'true'
         env:
