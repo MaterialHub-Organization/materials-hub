@@ -43,6 +43,11 @@ class BaseBlueprint(Blueprint):
         try:
             with open(script_path, "r") as file:
                 script_content = file.read()
-            return Response(script_content, mimetype="application/javascript")
+            response = Response(script_content, mimetype="application/javascript")
+            # Add headers to prevent caching
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+            return response
         except FileNotFoundError:
             return Response(f"File not found: {script_path}", status=404)

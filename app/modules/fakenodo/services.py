@@ -115,9 +115,12 @@ class FakenodoService(BaseService):
             raise Exception("Deposition not found")
 
         try:
-            deposition.doi = f"10.5281/fakenodo.{deposition_id}"
-            deposition.status = "published"
-            self.deposition_repository.update(deposition)
+            # Update deposition with DOI and status
+            self.deposition_repository.update(
+                deposition_id,
+                doi=f"10.5281/fakenodo.{deposition_id}",
+                status="published"
+            )
 
             response = {
                 "id": deposition_id,

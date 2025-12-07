@@ -494,7 +494,7 @@
                             </span>
                 </label>
 
-                <button id="upload_button" class="btn btn-primary mt-2" disabled>
+                <button type="button" id="upload_button" class="btn btn-primary mt-2" disabled>
                     <i data-feather="upload" class="center-button-icon"></i>
                     Create Materials Dataset</button>
 
@@ -553,5 +553,5 @@
 {% endblock %}
 
 {% block scripts %}
-    <script src="{{ url_for('dataset.scripts') }}"></script>
+    <script src="{{ url_for('dataset.scripts') }}?v={{ range(1, 10000) | random }}"></script>
 {% endblock %}

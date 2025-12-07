@@ -1,4 +1,5 @@
-var currentId = 0;
+console.log('🔄 DATASET SCRIPTS.JS LOADED - Version: 2024-12-07-12:45');
+        var currentId = 0;
         var amount_authors = 0;
 
         function show_upload_dataset() {
@@ -132,7 +133,18 @@ var currentId = 0;
 
             // test_zenodo_connection(); // Commented out - zenodo module is disabled
 
-            document.getElementById('upload_button').addEventListener('click', function () {
+            const uploadButton = document.getElementById('upload_button');
+            console.log('🟢 Window loaded. Upload button found:', uploadButton);
+
+            if (!uploadButton) {
+                console.error('❌ Upload button NOT found!');
+                return;
+            }
+
+            uploadButton.addEventListener('click', function (event) {
+                console.log('🔴 BUTTON CLICKED! Event:', event);
+                event.preventDefault();
+                event.stopPropagation();
 
                 clean_upload_errors();
                 show_loading();
@@ -202,29 +214,35 @@ var currentId = 0;
                             body: formUploadData
                         })
                             .then(response => {
-                                if (response.ok) {
-                                    console.log('Dataset sent successfully');
-                                    response.json().then(data => {
-                                        console.log(data.message);
-                                        // Check if there's a redirect_url (for MaterialsDataset)
-                                        if (data.redirect_url) {
-                                            window.location.href = data.redirect_url;
-                                        } else {
-                                            window.location.href = "/dataset/list";
-                                        }
-                                    });
+                                console.log('Response status:', response.status);
+                                console.log('Response headers:', response.headers.get('content-type'));
+
+                                // Check if response is JSON
+                                const contentType = response.headers.get('content-type');
+                                if (contentType && contentType.includes('application/json')) {
+                                    return response.json();
                                 } else {
-                                    response.json().then(data => {
-                                        console.error('Error: ' + data.message);
-                                        hide_loading();
-
-                                        write_upload_error(data.message);
-
+                                    // If not JSON, get the text to see what went wrong
+                                    return response.text().then(text => {
+                                        console.error('Expected JSON but got:', text.substring(0, 200));
+                                        throw new Error('Server returned HTML instead of JSON. Status: ' + response.status);
                                     });
+                                }
+                            })
+                            .then(data => {
+                                console.log('Dataset sent successfully');
+                                console.log('Response data:', data);
+                                // Check if there's a redirect_url (for MaterialsDataset)
+                                if (data.redirect_url) {
+                                    window.location.href = data.redirect_url;
+                                } else {
+                                    window.location.href = "/dataset/list";
                                 }
                             })
                             .catch(error => {
                                 console.error('Error in POST request:', error);
+                                hide_loading();
+                                write_upload_error(error.message);
                             });
                     }
 
