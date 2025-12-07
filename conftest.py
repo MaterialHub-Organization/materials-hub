@@ -43,7 +43,28 @@ def test_app():
 def test_client(test_app):
     with test_app.test_client() as testing_client:
         with test_app.app_context():
-            # Crear tablas de la base de datos
+            # Rollback any pending transactions
+            db.session.rollback()
+            db.session.remove()
+
+            # Drop all tables with foreign key checks disabled
+            with db.engine.begin() as conn:
+                conn.execute(db.text("SET FOREIGN_KEY_CHECKS=0"))
+
+                # Get all table names
+                result = conn.execute(db.text(
+                    "SELECT table_name FROM information_schema.tables "
+                    "WHERE table_schema = DATABASE()"
+                ))
+                tables = [row[0] for row in result]
+
+                # Drop each table
+                for table in tables:
+                    conn.execute(db.text(f"DROP TABLE IF EXISTS `{table}`"))
+
+                conn.execute(db.text("SET FOREIGN_KEY_CHECKS=1"))
+
+            # Recreate all tables
             db.create_all()
 
             # Limpiar sesión antes de crear nuevos datos
@@ -51,22 +72,51 @@ def test_client(test_app):
             db.session.remove()
 
             # Crear usuario de test si no existe
-            user_test = User.query.filter_by(email="test@example.com").first()
-            if not user_test:
-                user_test = User(email="test@example.com", password="test1234")
-                db.session.add(user_test)
-                db.session.commit()
+            user_test = User(email="test@example.com", password="test1234")
+            db.session.add(user_test)
+            db.session.commit()
 
-                # Create user profile for the test user
-                profile = UserProfile(user_id=user_test.id, name="Test", surname="User")
-                db.session.add(profile)
-                db.session.commit()
+            # Create user profile for the test user
+            profile = UserProfile(user_id=user_test.id, name="Test", surname="User")
+            db.session.add(profile)
+            db.session.commit()
 
             yield testing_client
 
-            # Cleanup: cerrar sesión
-            db.session.expire_all()
+            # Cleanup: rollback and close session
+            db.session.rollback()
             db.session.remove()
+
+            # Drop all tables with foreign key checks disabled
+            # (next test will recreate them in setup)
+            with db.engine.begin() as conn:
+                # Disable foreign key checks
+                conn.execute(db.text("SET FOREIGN_KEY_CHECKS=0"))
+                conn.execute(db.text("SET SESSION sql_mode='NO_AUTO_VALUE_ON_ZERO'"))
+
+                # Get all table names
+                result = conn.execute(db.text(
+                    "SELECT table_name FROM information_schema.tables "
+                    "WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE'"
+                ))
+                tables = [row[0] for row in result]
+
+                # Truncate all tables first (clears data)
+                for table in tables:
+                    try:
+                        conn.execute(db.text(f"TRUNCATE TABLE `{table}`"))
+                    except Exception:
+                        pass  # Ignore errors, will drop anyway
+
+                # Drop each table
+                for table in tables:
+                    try:
+                        conn.execute(db.text(f"DROP TABLE `{table}`"))
+                    except Exception:
+                        pass  # Ignore errors
+
+                # Re-enable foreign key checks
+                conn.execute(db.text("SET FOREIGN_KEY_CHECKS=1"))
 
 
 @pytest.fixture(scope="function")
@@ -98,55 +148,45 @@ def clean_database(test_app):
 @pytest.fixture(scope="function")
 def integration_test_data(test_client):
     """Create test data for integration tests."""
-    # Limpiar datos residuales antes de crear nuevos (por si quedaron de tests anteriores)
-    # Primero identificar los datasets de test
-    ds_meta_ids_subq = db.session.query(DSMetaData.id).filter(
-        db.or_(DSMetaData.dataset_doi.like("10.1234/%"), DSMetaData.tags.like("%testing%"))
-    ).scalar_subquery()
-    test_dataset_ids_subq = db.session.query(MaterialsDataset.id).filter(
-        MaterialsDataset.ds_meta_data_id.in_(ds_meta_ids_subq)
-    ).scalar_subquery()
+    # Rollback any pending transaction first
+    db.session.rollback()
 
-    # Borrar TODOS los records asociados con datasets de test
-    db.session.query(DSDownloadRecord).filter(DSDownloadRecord.dataset_id.in_(test_dataset_ids_subq)).delete(
-        synchronize_session=False
-    )
-    db.session.query(DSViewRecord).filter(DSViewRecord.dataset_id.in_(test_dataset_ids_subq)).delete(
-        synchronize_session=False
-    )
-
-    # Borrar autores
-    db.session.query(Author).filter(Author.affiliation.in_(["MIT", "Stanford"])).delete(synchronize_session=False)
-
-    # Borrar MaterialRecords asociados a los datasets de test
-    db.session.query(MaterialRecord).filter(
-        MaterialRecord.materials_dataset_id.in_(test_dataset_ids_subq)
+    # Delete existing test data if it exists (test_client has module scope)
+    # Delete in reverse order of foreign keys
+    db.session.query(DSDownloadRecord).filter(
+        DSDownloadRecord.download_cookie.like("test_%")
     ).delete(synchronize_session=False)
 
-    # Borrar MaterialsDatasets
-    db.session.query(MaterialsDataset).filter(
-        MaterialsDataset.ds_meta_data_id.in_(ds_meta_ids_subq)
+    db.session.query(DSViewRecord).filter(
+        DSViewRecord.view_cookie.like("test_%")
     ).delete(synchronize_session=False)
 
-    # Ahora borrar los metadatos
-    db.session.query(DSMetaData).filter(
-        db.or_(DSMetaData.dataset_doi.like("10.1234/%"), DSMetaData.tags.like("%testing%"))
+    db.session.query(Author).filter(
+        Author.affiliation.in_(["MIT", "Stanford"])
     ).delete(synchronize_session=False)
 
-    # Finalmente borrar usuario y perfil
-    db.session.query(UserProfile).filter(UserProfile.name == "User", UserProfile.surname == "One").delete(
-        synchronize_session=False
-    )
-    db.session.query(User).filter(User.email == "user1@example.com").delete(synchronize_session=False)
+    db.session.query(MaterialRecord).delete(synchronize_session=False)
+    db.session.query(MaterialsDataset).delete(synchronize_session=False)
+    db.session.query(DSMetaData).delete(synchronize_session=False)
+
+    existing_profile = UserProfile.query.filter_by(name="User", surname="One").first()
+    if existing_profile:
+        db.session.delete(existing_profile)
+
+    existing_user = User.query.filter_by(email="user1@example.com").first()
+    if existing_user:
+        db.session.delete(existing_user)
+
     db.session.commit()
 
     # Crear usuario y perfil
     user1 = User(email="user1@example.com", password="test1234")
     db.session.add(user1)
-    db.session.flush()  # Flush para obtener el ID
+    db.session.commit()  # Commit to get the ID
 
     profile1 = UserProfile(user_id=user1.id, name="User", surname="One")
     db.session.add(profile1)
+    db.session.commit()  # Commit profile
 
     # Crear metadatos de datasets
     ds_meta1 = DSMetaData(
@@ -257,55 +297,7 @@ def integration_test_data(test_client):
 
     yield
 
-    # Cleanup: eliminar datos de test con synchronize_session=False para evitar errores
-    try:
-        # Expirar todos los objetos cached para evitar ObjectDeletedError
-        db.session.expire_all()
-
-        # Primero identificar los datasets de test
-        ds_meta_ids = db.session.query(DSMetaData.id).filter(
-            db.or_(DSMetaData.dataset_doi.like("10.1234/%"), DSMetaData.tags.like("%testing%"))
-        ).scalar_subquery()
-        test_dataset_ids = db.session.query(MaterialsDataset.id).filter(
-            MaterialsDataset.ds_meta_data_id.in_(ds_meta_ids)
-        ).scalar_subquery()
-
-        # Borrar TODOS los records asociados con datasets de test (no solo los que tienen cookie de test)
-        db.session.query(DSDownloadRecord).filter(DSDownloadRecord.dataset_id.in_(test_dataset_ids)).delete(
-            synchronize_session=False
-        )
-        db.session.query(DSViewRecord).filter(DSViewRecord.dataset_id.in_(test_dataset_ids)).delete(
-            synchronize_session=False
-        )
-
-        # Borrar autores
-        db.session.query(Author).filter(Author.affiliation.in_(["MIT", "Stanford"])).delete(synchronize_session=False)
-
-        # Borrar MaterialRecords asociados a los datasets de test
-        db.session.query(MaterialRecord).filter(
-            MaterialRecord.materials_dataset_id.in_(test_dataset_ids)
-        ).delete(synchronize_session=False)
-
-        # Borrar MaterialsDatasets
-        db.session.query(MaterialsDataset).filter(
-            MaterialsDataset.ds_meta_data_id.in_(ds_meta_ids)
-        ).delete(synchronize_session=False)
-
-        # Ahora borrar los metadatos
-        db.session.query(DSMetaData).filter(
-            db.or_(DSMetaData.dataset_doi.like("10.1234/%"), DSMetaData.tags.like("%testing%"))
-        ).delete(synchronize_session=False)
-
-        # Finalmente borrar usuario y perfil
-        db.session.query(UserProfile).filter(UserProfile.name == "User", UserProfile.surname == "One").delete(
-            synchronize_session=False
-        )
-        db.session.query(User).filter(User.email == "user1@example.com").delete(synchronize_session=False)
-        db.session.commit()
-    except Exception:
-        # Si hay algún error en el cleanup, hacer rollback e intentar cerrar sesión limpiamente
-        db.session.rollback()
-        db.session.remove()
+    # No cleanup needed - test_client fixture handles db.drop_all() at teardown
 
 
 def login(test_client, email, password):

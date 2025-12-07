@@ -19,7 +19,8 @@ load_dotenv()
 class FakenodoService(BaseService):
 
     def __init__(self):
-        self.deposition_repository = DepositionRepository()
+        super().__init__(DepositionRepository())
+        self.deposition_repository = self.repository
 
     def create_new_deposition(self, dataset: "DataSet") -> dict:  # noqa: F821
         """

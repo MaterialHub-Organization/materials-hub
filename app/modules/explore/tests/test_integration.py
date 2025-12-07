@@ -147,3 +147,145 @@ def test_explore_api_endpoint(test_client, integration_test_data):
     assert response.status_code == 200
     assert isinstance(response.json, list)
     assert len(response.json) >= 1
+
+
+@pytest.mark.integration
+def test_explore_pagination(test_client, integration_test_data):
+    """Test explore page pagination."""
+    response = test_client.get("/explore", query_string={"page": 1})
+    assert response.status_code == 200
+
+
+@pytest.mark.integration
+def test_explore_empty_query(test_client, integration_test_data):
+    """Test explore with empty query returns all datasets."""
+    with test_client.application.app_context():
+        service = ExploreService()
+        results = service.filter(query="")
+        assert len(results) >= 1
+
+
+@pytest.mark.integration
+def test_explore_repository_count(test_client, integration_test_data):
+    """Test getting total dataset count."""
+    with test_client.application.app_context():
+        service = ExploreService()
+        count = service.repository.count()
+        assert count >= 3
+
+
+@pytest.mark.integration
+def test_explore_no_results_query(test_client):
+    """Test explore with query that returns no results."""
+    with test_client.application.app_context():
+        service = ExploreService()
+        results = service.filter(query="xyznonexistentquery123")
+        assert len(results) == 0
+
+
+@pytest.mark.integration
+def test_explore_http_post_with_filters(test_client, integration_test_data):
+    """Test explore HTTP POST endpoint with filters."""
+    response = test_client.post(
+        "/explore",
+        json={"query": "", "sorting": "oldest", "publication_type": "any", "tags": []},
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    assert isinstance(response.json, list)
+
+
+@pytest.mark.integration
+def test_explore_with_query_parameter(test_client):
+    """Test explore GET with query parameter."""
+    response = test_client.get("/explore?query=software")
+    assert response.status_code == 200
+
+
+@pytest.mark.integration
+def test_explore_post_empty_json(test_client):
+    """Test explore POST with empty JSON."""
+    response = test_client.post("/explore", json={}, content_type="application/json")
+    assert response.status_code == 200
+    assert isinstance(response.json, list)
+
+
+@pytest.mark.integration
+def test_explore_post_with_tags(test_client):
+    """Test explore POST with tags filter."""
+    response = test_client.post("/explore", json={"tags": ["test"]}, content_type="application/json")
+    assert response.status_code == 200
+    assert isinstance(response.json, list)
+
+
+@pytest.mark.integration
+def test_explore_post_with_publication_type(test_client):
+    """Test explore POST with publication type filter."""
+    response = test_client.post(
+        "/explore", json={"publication_type": "conferencepaper"}, content_type="application/json"
+    )
+    assert response.status_code == 200
+    assert isinstance(response.json, list)
+
+
+@pytest.mark.integration
+def test_explore_service_repository_initialization(test_client):
+    """Test ExploreService repository initialization."""
+    with test_client.application.app_context():
+        service = ExploreService()
+        assert service.repository is not None
+
+
+@pytest.mark.integration
+def test_explore_service_filter_empty_results(test_client):
+    """Test explore service filter returns empty list for no results."""
+    with test_client.application.app_context():
+        service = ExploreService()
+        results = service.filter(query="nonexistent12345xyz")
+        assert isinstance(results, list)
+        assert len(results) == 0
+
+
+@pytest.mark.integration
+def test_explore_service_filter_by_multiple_tags(test_client, integration_test_data):
+    """Test filtering by multiple tags."""
+    with test_client.application.app_context():
+        service = ExploreService()
+        results = service.filter(query="", tags=["patterns", "software"])
+        assert isinstance(results, list)
+
+
+@pytest.mark.integration
+def test_explore_route_returns_html(test_client):
+    """Test that explore route GET returns HTML."""
+    response = test_client.get("/explore")
+    assert response.status_code == 200
+    assert b"html" in response.data or b"<!DOCTYPE" in response.data or b"<div" in response.data
+
+
+@pytest.mark.integration
+def test_explore_post_sorting_by_views(test_client):
+    """Test explore POST with sorting by views."""
+    response = test_client.post("/explore", json={"sorting": "views"}, content_type="application/json")
+    assert response.status_code == 200
+
+
+@pytest.mark.integration
+def test_explore_post_sorting_by_downloads(test_client):
+    """Test explore POST with sorting by downloads."""
+    response = test_client.post("/explore", json={"sorting": "downloads"}, content_type="application/json")
+    assert response.status_code == 200
+
+
+@pytest.mark.integration
+def test_explore_dataset_metadata_in_results(test_client, integration_test_data):
+    """Test that dataset metadata is included in results."""
+    with test_client.application.app_context():
+        service = ExploreService()
+        results = service.filter(query="")
+        if len(results) > 0:
+            dataset = results[0]
+            assert hasattr(dataset, 'ds_meta_data')
+            assert dataset.ds_meta_data is not None
+
+
