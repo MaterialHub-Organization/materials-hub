@@ -1,9 +1,3 @@
-# ----------------------------------------------------------------------------
-# Workflow de Tests de Integración
-# Este workflow ejecuta tests de integración en cada push a cualquier rama.
-# Configura un contenedor de servicio PostgreSQL y variables de entorno.
-# ----------------------------------------------------------------------------
-
 name: Tests de Integración
 
 on:
@@ -14,7 +8,6 @@ jobs:
     name: Pytest
     runs-on: ubuntu-24.04
 
-    # Variables de entorno globales compartidas entre servicios y pasos
     env:
       POSTGRES_ROOT_PASSWORD: materialhub_root_password
       POSTGRES_DATABASE: materialhub_test
@@ -26,7 +19,6 @@ jobs:
       FLASK_ENV: testing
 
     services:
-      # Contenedor de servicio PostgreSQL para tests
       postgres:
         image: postgres:17
         env:
@@ -43,32 +35,40 @@ jobs:
 
     steps:
 
-      # Paso 1: Obtener el código del repositorio
       - name: Obtener código
         uses: actions/checkout@v5
 
-      # Paso 2: Configurar entorno Python (versión 3.12)
       - name: Configurar Python
         uses: actions/setup-python@v6
         with:
           python-version: '3.12'
           cache: 'pip'
 
-      # Paso 3: Eliminar modo editable local para dependencia rosemary
       - name: Eliminar rosemary en modo editable
         run: sed -i '/rosemary @ file:\/\/\/app/d' requirements.txt
 
-      # Paso 4: Instalar dependencias de Python
       - name: Instalar dependencias
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # Paso 5: Ejecutar suite de tests de integración
+      - name: Instalar PostgreSQL 17 client
+        run: |
+          sudo apt update
+          sudo apt install -y wget gnupg lsb-release
+          wget -qO - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/postgresql-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/postgresql-archive-keyring.gpg] http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt update
+          sudo apt install -y postgresql-client-17
+
+      - name: Configurar base de datos
+        run: |
+          rosemary db:upgrade
+          rosemary db:seed
+
       - name: Ejecutar tests de integración
         run: pytest -m integration -v --cov=app --cov-report=term-missing --cov-report=xml --cov-report=html
 
-      # Paso 6: Subir cobertura a Codecov
       - name: Subir cobertura a Codecov
         uses: codecov/codecov-action@v5
         with:
@@ -79,7 +79,6 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
-      # Paso 7: Subir reporte HTML de cobertura como artefacto
       - name: Subir reporte HTML de cobertura
         uses: actions/upload-artifact@v4
         if: always()
@@ -88,7 +87,6 @@ jobs:
           path: htmlcov/
           retention-days: 30
 
-      # Paso 8: Generar resumen de cobertura
       - name: Resumen de cobertura
         if: always()
         run: |
@@ -96,3 +94,4 @@ jobs:
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           coverage report >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
