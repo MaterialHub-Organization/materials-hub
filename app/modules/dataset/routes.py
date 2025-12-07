@@ -55,6 +55,9 @@ def regenerate_csv_for_dataset(dataset_id):
     """Regenerate CSV file for a MaterialsDataset with current records"""
     from app import db
 
+    # Expire all cached objects to ensure we read fresh data from database
+    db.session.expire_all()
+
     dataset = materials_dataset_repository.get_by_id(dataset_id)
     if not dataset:
         return False
@@ -394,6 +397,11 @@ def view_top_global():
 @dataset_bp.route("/materials/<int:dataset_id>", methods=["GET"])
 def view_materials_dataset(dataset_id):
     """View details of a MaterialsDataset (public view)"""
+    from app import db
+
+    # Expire all cached objects to ensure fresh data from database
+    db.session.expire_all()
+
     dataset = materials_dataset_repository.get_by_id(dataset_id)
 
     if not dataset:
@@ -671,6 +679,9 @@ def add_material_record(dataset_id):
             db.session.add(new_record)
             db.session.commit()
 
+            # Remove session to ensure next request gets fresh data
+            db.session.remove()
+
             # Regenerate CSV file
             regenerate_csv_for_dataset(dataset_id)
 
@@ -706,7 +717,18 @@ def edit_material_record(dataset_id, record_id):
 
     form = MaterialRecordForm(obj=record)
 
+    # Debug logging
+    if request.method == 'POST':
+        with open("/tmp/selenium_edit_debug.log", "a") as f:
+            f.write(f"POST to edit: record_id={record_id}, form_valid={form.validate_on_submit()}\n")
+            if not form.validate():
+                f.write(f"  Form errors: {form.errors}\n")
+
     if form.validate_on_submit():
+        # Debug logging to file
+        with open("/tmp/selenium_edit_debug.log", "a") as f:
+            f.write(f"EDIT CALLED: record_id={record_id}, old_value={record.property_value}, new_value={form.property_value.data}\n")
+
         try:
             # Update record
             record.material_name = form.material_name.data
@@ -722,9 +744,13 @@ def edit_material_record(dataset_id, record_id):
             record.uncertainty = form.uncertainty.data
             record.description = form.description.data
 
+            # Commit changes to database
             db.session.commit()
 
-            # Regenerate CSV file
+            # Remove session to ensure next request gets fresh data
+            db.session.remove()
+
+            # Regenerate CSV file with fresh data
             regenerate_csv_for_dataset(dataset_id)
 
             flash("Material record updated successfully!", "success")
