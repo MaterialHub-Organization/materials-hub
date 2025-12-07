@@ -1,7 +1,6 @@
 # ----------------------------------------------------------------------------
 # Workflow de Tests de Carga
 # Este workflow ejecuta tests de carga con Locust para verificar el rendimiento.
-# Se ejecuta en todas las ramas para detectar regresiones de rendimiento.
 # ----------------------------------------------------------------------------
 
 name: Tests de Carga
@@ -62,12 +61,12 @@ jobs:
           pip install -r requirements.txt
           pip install -e .
 
-      # --- FIX IMPORTANTE ---
       - name: Instalar PostgreSQL 17 client
         run: |
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt noble-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
           sudo apt update
           sudo apt install -y postgresql-client-17
-      # -----------------------
 
       - name: Configurar base de datos
         run: |
@@ -120,9 +119,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ -f reports/estadisticas_locust_stats.csv ]; then
             echo "### Resumen de Resultados" >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "```" >> $GITHUB_STEP_SUMMARY
             head -n 10 reports/estadisticas_locust_stats.csv >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "```" >> $GITHUB_STEP_SUMMARY
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "📊 [Descargar reporte HTML completo](../artifacts)" >> $GITHUB_STEP_SUMMARY

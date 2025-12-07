@@ -68,12 +68,10 @@ jobs:
           pip install -r requirements.txt
           pip install -e .
 
-      # --- NUEVO STEP PARA CORREGIR EL ERROR ---
       - name: Instalar PostgreSQL 17 client
         run: |
           sudo apt update
           sudo apt install -y postgresql-client-17
-      # -----------------------------------------
 
       - name: Configurar base de datos
         run: |
@@ -89,12 +87,12 @@ jobs:
       - name: Verificación de salud
         run: |
           curl -f http://localhost:5000/ || exit 1
-          echo "¡Aplicación funcionando correctamente!"
+          echo "Aplicación funcionando"
 
       - name: Esperar a Selenium
         run: |
           timeout 30 bash -c 'until curl -s http://localhost:4444/wd/hub/status | grep -q "ready"; do sleep 1; done'
-          echo "¡Selenium está listo!"
+          echo "Selenium listo"
 
       - name: Ejecutar tests de interfaz
         env:
@@ -102,7 +100,6 @@ jobs:
           BASE_URL: http://host.docker.internal:5000
         run: |
           if pytest --collect-only -m selenium 2>&1 | grep -q "no tests ran"; then
-            echo "⚠️ No se encontraron tests con @pytest.mark.selenium"
             exit 0
           else
             pytest -m selenium -v --tb=short
@@ -123,10 +120,7 @@ jobs:
       - name: Resumen de tests de interfaz
         if: always()
         run: |
-          echo "## 🌐 Resultados de Tests de Interfaz (Selenium)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- Selenium Grid: http://localhost:4444" >> $GITHUB_STEP_SUMMARY
-          echo "💡 Añade tests con @pytest.mark.selenium" >> $GITHUB_STEP_SUMMARY
+          echo "## Resultados de Tests de Interfaz (Selenium)" >> $GITHUB_STEP_SUMMARY
 
       - name: Detener aplicación Flask
         if: always()
@@ -134,3 +128,4 @@ jobs:
           if [ -f flask.pid ]; then
             kill $(cat flask.pid) || true
           fi
+

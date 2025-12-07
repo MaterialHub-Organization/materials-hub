@@ -42,10 +42,9 @@ def test_client(test_app):
             # Drop all tables (CASCADE handles foreign key dependencies)
             with db.engine.begin() as conn:
                 # Get all table names
-                result = conn.execute(db.text(
-                    "SELECT table_name FROM information_schema.tables "
-                    "WHERE table_schema = 'public'"
-                ))
+                result = conn.execute(
+                    db.text("SELECT table_name FROM information_schema.tables " "WHERE table_schema = 'public'")
+                )
                 tables = [row[0] for row in result]
 
                 # Drop each table with CASCADE
@@ -79,10 +78,12 @@ def test_client(test_app):
             # Drop all tables (CASCADE handles foreign key dependencies)
             with db.engine.begin() as conn:
                 # Get all table names
-                result = conn.execute(db.text(
-                    "SELECT table_name FROM information_schema.tables "
-                    "WHERE table_schema = 'public' AND table_type = 'BASE TABLE'"
-                ))
+                result = conn.execute(
+                    db.text(
+                        "SELECT table_name FROM information_schema.tables "
+                        "WHERE table_schema = 'public' AND table_type = 'BASE TABLE'"
+                    )
+                )
                 tables = [row[0] for row in result]
 
                 # Drop each table with CASCADE

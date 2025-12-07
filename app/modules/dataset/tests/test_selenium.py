@@ -16,9 +16,7 @@ from core.selenium.common import close_driver, initialize_driver
 
 
 def wait_for_page_to_load(driver, timeout: int = 15):
-    WebDriverWait(driver, timeout).until(
-        lambda d: d.execute_script("return document.readyState") == "complete"
-    )
+    WebDriverWait(driver, timeout).until(lambda d: d.execute_script("return document.readyState") == "complete")
 
 
 def login(driver, host: str, email: str = "user1@example.com", password: str = "1234"):
@@ -29,9 +27,7 @@ def login(driver, host: str, email: str = "user1@example.com", password: str = "
     wait_for_page_to_load(driver)
 
     # Esperar al formulario
-    email_field = WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.NAME, "email"))
-    )
+    email_field = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, "email")))
     password_field = driver.find_element(By.NAME, "password")
 
     email_field.clear()
@@ -42,9 +38,7 @@ def login(driver, host: str, email: str = "user1@example.com", password: str = "
     # Intentar hacer click en botón submit
     try:
         submit_button = WebDriverWait(driver, 5).until(
-            EC.element_to_be_clickable(
-                (By.CSS_SELECTOR, "button[type='submit'], input[type='submit']")
-            )
+            EC.element_to_be_clickable((By.CSS_SELECTOR, "button[type='submit'], input[type='submit']"))
         )
         submit_button.click()
     except TimeoutException:
@@ -54,16 +48,10 @@ def login(driver, host: str, email: str = "user1@example.com", password: str = "
     wait_for_page_to_load(driver)
 
     current_url = driver.current_url
-    assert "/login" not in current_url, (
-        f"El login no ha funcionado, seguimos en /login. URL actual: {current_url}"
-    )
+    assert "/login" not in current_url, f"El login no ha funcionado, seguimos en /login. URL actual: {current_url}"
 
 
-def create_materials_dataset_and_go_to_csv_upload(
-    driver,
-    host: str,
-    title_suffix: str = ""
-):
+def create_materials_dataset_and_go_to_csv_upload(driver, host: str, title_suffix: str = ""):
     """
     Crea un MaterialsDataset desde /dataset/upload.
 
@@ -81,16 +69,13 @@ def create_materials_dataset_and_go_to_csv_upload(
     dataset_title = f"Selenium Materials Dataset {title_suffix}".strip()
 
     try:
-        title_input = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.NAME, "title"))
-        )
+        title_input = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, "title")))
     except TimeoutException:
         html_path = "/tmp/selenium_dataset_upload_error.html"
         with open(html_path, "w", encoding="utf-8") as f:
             f.write(driver.page_source)
         raise AssertionError(
-            f"No se encontró el input name='title' en /dataset/upload. "
-            f"HTML guardado en {html_path}"
+            f"No se encontró el input name='title' en /dataset/upload. " f"HTML guardado en {html_path}"
         )
 
     desc_input = driver.find_element(By.NAME, "desc")
@@ -113,16 +98,13 @@ def create_materials_dataset_and_go_to_csv_upload(
 
     # Esperar a que aparezca el input de CSV en /materials/<id>/upload
     try:
-        WebDriverWait(driver, 30).until(
-            EC.presence_of_element_located((By.ID, "csvFile"))
-        )
+        WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.ID, "csvFile")))
     except TimeoutException:
         html_path = "/tmp/selenium_csv_upload_page_error.html"
         with open(html_path, "w", encoding="utf-8") as f:
             f.write(driver.page_source)
         raise AssertionError(
-            "No se ha llegado a la página de subida de CSV "
-            f"(/materials/<id>/upload). HTML guardado en {html_path}"
+            "No se ha llegado a la página de subida de CSV " f"(/materials/<id>/upload). HTML guardado en {html_path}"
         )
 
     wait_for_page_to_load(driver)
@@ -151,9 +133,7 @@ def upload_csv_for_dataset(driver):
             "Asegúrate de que existe 'examples/materials_example.csv'."
         )
 
-    file_input = WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.ID, "csvFile"))
-    )
+    file_input = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, "csvFile")))
     file_input.send_keys(csv_path)
 
     upload_button = driver.find_element(By.ID, "uploadBtn")
@@ -162,17 +142,14 @@ def upload_csv_for_dataset(driver):
     # Esperar a que aparezca el mensaje de éxito
     try:
         WebDriverWait(driver, 30).until(
-            EC.presence_of_element_located(
-                (By.CSS_SELECTOR, "#uploadResult .alert-success")
-            )
+            EC.presence_of_element_located((By.CSS_SELECTOR, "#uploadResult .alert-success"))
         )
     except TimeoutException:
         html_path = "/tmp/selenium_csv_upload_result_error.html"
         with open(html_path, "w", encoding="utf-8") as f:
             f.write(driver.page_source)
         raise AssertionError(
-            "No se ha mostrado el mensaje de éxito tras subir el CSV. "
-            f"HTML guardado en {html_path}"
+            "No se ha mostrado el mensaje de éxito tras subir el CSV. " f"HTML guardado en {html_path}"
         )
 
 
@@ -183,17 +160,14 @@ def go_to_view_dataset_from_upload_result(driver, dataset_id: str):
     """
     try:
         view_button = WebDriverWait(driver, 15).until(
-            EC.element_to_be_clickable(
-                (By.XPATH, "//a[contains(., 'View Dataset')]")
-            )
+            EC.element_to_be_clickable((By.XPATH, "//a[contains(., 'View Dataset')]"))
         )
     except TimeoutException:
         html_path = "/tmp/selenium_view_dataset_button_error.html"
         with open(html_path, "w", encoding="utf-8") as f:
             f.write(driver.page_source)
         raise AssertionError(
-            "No se encontró el botón/enlace 'View Dataset' tras subir el CSV. "
-            f"HTML guardado en {html_path}"
+            "No se encontró el botón/enlace 'View Dataset' tras subir el CSV. " f"HTML guardado en {html_path}"
         )
 
     view_button.click()
@@ -201,14 +175,14 @@ def go_to_view_dataset_from_upload_result(driver, dataset_id: str):
 
     current_url = driver.current_url
     assert f"/materials/{dataset_id}" in current_url, (
-        f"No estamos en la vista del dataset tras pulsar 'View Dataset'. "
-        f"URL actual: {current_url}"
+        f"No estamos en la vista del dataset tras pulsar 'View Dataset'. " f"URL actual: {current_url}"
     )
 
 
 # ==============================
 # TESTS
 # ==============================
+
 
 def test_login_success():
     """
@@ -243,9 +217,7 @@ def test_create_materials_dataset_upload_csv_and_view():
         login(driver, host)
 
         # 2) Crear dataset y llegar a /materials/<id>/upload
-        dataset_id, dataset_title = create_materials_dataset_and_go_to_csv_upload(
-            driver, host, title_suffix="E2E"
-        )
+        dataset_id, dataset_title = create_materials_dataset_and_go_to_csv_upload(driver, host, title_suffix="E2E")
 
         # 3) Subir CSV
         upload_csv_for_dataset(driver)
@@ -258,16 +230,13 @@ def test_create_materials_dataset_upload_csv_and_view():
             EC.presence_of_element_located(
                 (
                     By.XPATH,
-                    "//*[contains(@class, 'material-record-item') "
-                    "or contains(text(), 'No material records')]",
+                    "//*[contains(@class, 'material-record-item') " "or contains(text(), 'No material records')]",
                 )
             )
         )
 
         material_items = driver.find_elements(By.CSS_SELECTOR, ".material-record-item")
-        assert len(material_items) > 0, (
-            "No se han creado registros de materiales a partir del CSV"
-        )
+        assert len(material_items) > 0, "No se han creado registros de materiales a partir del CSV"
 
     finally:
         close_driver(driver)
@@ -290,9 +259,7 @@ def test_dataset_appears_in_my_materials():
         login(driver, host)
 
         # 2) Crear dataset y subir CSV
-        dataset_id, dataset_title = create_materials_dataset_and_go_to_csv_upload(
-            driver, host, title_suffix="Listed"
-        )
+        dataset_id, dataset_title = create_materials_dataset_and_go_to_csv_upload(driver, host, title_suffix="Listed")
         upload_csv_for_dataset(driver)
 
         # 3) Ir a la lista de datasets del usuario
@@ -300,9 +267,7 @@ def test_dataset_appears_in_my_materials():
         wait_for_page_to_load(driver)
 
         # 4) Buscar nuestro dataset en la tabla
-        table = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.TAG_NAME, "table"))
-        )
+        table = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "table")))
         rows = table.find_elements(By.CSS_SELECTOR, "tbody tr")
 
         assert rows, "No hay filas en la tabla de My Materials Datasets"
@@ -333,18 +298,14 @@ def test_material_search_filter_works_with_example_csv():
         login(driver, host)
 
         # 2) Crear dataset y subir CSV
-        dataset_id, dataset_title = create_materials_dataset_and_go_to_csv_upload(
-            driver, host, title_suffix="Search"
-        )
+        dataset_id, dataset_title = create_materials_dataset_and_go_to_csv_upload(driver, host, title_suffix="Search")
         upload_csv_for_dataset(driver)
 
         # 3) Ir a la vista del dataset
         go_to_view_dataset_from_upload_result(driver, dataset_id)
 
         # Esperar a que haya al menos un registro de material
-        WebDriverWait(driver, 15).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, ".material-record-item"))
-        )
+        WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CSS_SELECTOR, ".material-record-item")))
         items = driver.find_elements(By.CSS_SELECTOR, ".material-record-item")
         assert items, "No hay registros de materiales tras subir el CSV"
 
@@ -382,9 +343,7 @@ def test_material_search_filter_works_with_example_csv():
             if "display: none" not in style:
                 visible_items.append(item)
 
-        assert visible_items, (
-            f"El filtro no ha dejado visible ningún material al buscar '{search_term}'"
-        )
+        assert visible_items, f"El filtro no ha dejado visible ningún material al buscar '{search_term}'"
 
         for item in visible_items:
             material_name = (item.get_attribute("data-material-name") or "").lower()
@@ -413,24 +372,18 @@ def test_csv_modal_displays_csv_contents():
     try:
         login(driver, host)
 
-        dataset_id, dataset_title = create_materials_dataset_and_go_to_csv_upload(
-            driver, host, title_suffix="CSVModal"
-        )
+        dataset_id, dataset_title = create_materials_dataset_and_go_to_csv_upload(driver, host, title_suffix="CSVModal")
         upload_csv_for_dataset(driver)
         go_to_view_dataset_from_upload_result(driver, dataset_id)
 
         # Pulsar el botón "View" del CSV (con onclick="viewCSV()")
         view_button = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable(
-                (By.XPATH, "//button[contains(@onclick, 'viewCSV')]")
-            )
+            EC.element_to_be_clickable((By.XPATH, "//button[contains(@onclick, 'viewCSV')]"))
         )
         view_button.click()
 
         # Esperar a que se cargue la tabla dentro del modal
-        headers_row = WebDriverWait(driver, 15).until(
-            EC.presence_of_element_located((By.ID, "csvHeaders"))
-        )
+        headers_row = WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.ID, "csvHeaders")))
         body_tbody = driver.find_element(By.ID, "csvBody")
 
         headers = headers_row.find_elements(By.TAG_NAME, "th")
@@ -461,9 +414,7 @@ def test_materials_statistics_page_loads():
         login(driver, host)
 
         # 2) Crear dataset y subir CSV
-        dataset_id, dataset_title = create_materials_dataset_and_go_to_csv_upload(
-            driver, host, title_suffix=" Stats"
-        )
+        dataset_id, dataset_title = create_materials_dataset_and_go_to_csv_upload(driver, host, title_suffix=" Stats")
         upload_csv_for_dataset(driver)
 
         # 3) Ir a la página de estadísticas
@@ -475,8 +426,7 @@ def test_materials_statistics_page_loads():
 
         # 4.a) Asegurarnos de que no nos ha mandado a /login
         assert "/login" not in current_url, (
-            "La página de estadísticas ha redirigido a /login. "
-            f"URL actual: {current_url}"
+            "La página de estadísticas ha redirigido a /login. " f"URL actual: {current_url}"
         )
 
         # 4.b) Asegurarnos de que estamos en la URL correcta
@@ -491,11 +441,7 @@ def test_materials_statistics_page_loads():
 
         base_title = dataset_title.replace("Stats", "").strip()
 
-        assert (
-            dataset_title in body_text
-            or base_title in body_text
-            or "Statistics" in body_text
-        ), (
+        assert dataset_title in body_text or base_title in body_text or "Statistics" in body_text, (
             "La página de estadísticas no parece mostrar información del dataset.\n"
             f"Buscábamos algo como '{dataset_title}' o 'Statistics' y no aparece."
         )
@@ -686,14 +632,10 @@ def test_delete_material_record_removes_it_from_view():
         go_to_view_dataset_from_upload_result(driver, dataset_id)
 
         # Esperar a que haya al menos un registro en la página
-        WebDriverWait(driver, 15).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, ".material-record-item"))
-        )
+        WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CSS_SELECTOR, ".material-record-item")))
 
         # Leer el contador global de registros (badge #recordCount)
-        record_count_elem = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.ID, "recordCount"))
-        )
+        record_count_elem = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, "recordCount")))
         count_before = int(record_count_elem.text.strip())
 
         assert count_before > 0, "El contador de registros es 0 antes de borrar"
@@ -707,10 +649,7 @@ def test_delete_material_record_removes_it_from_view():
 
         # 4) Localizar el botón de borrar dentro de ese registro
         # En el template: onclick="deleteRecord(datasetId, recordId)"
-        delete_button = first_record.find_element(
-            By.XPATH,
-            ".//button[contains(@onclick, 'deleteRecord')]"
-        )
+        delete_button = first_record.find_element(By.XPATH, ".//button[contains(@onclick, 'deleteRecord')]")
         delete_button.click()
 
         # 5) Aparece el confirm() -> Selenium lo trata como un Alert.
@@ -722,8 +661,7 @@ def test_delete_material_record_removes_it_from_view():
             with open(html_path, "w", encoding="utf-8") as f:
                 f.write(driver.page_source)
             raise AssertionError(
-                "No apareció el confirm() de borrado al pulsar deleteRecord. "
-                f"HTML guardado en {html_path}"
+                "No apareció el confirm() de borrado al pulsar deleteRecord. " f"HTML guardado en {html_path}"
             )
 
         # 6) Esperar recarga de página y que el contador cambie

@@ -718,7 +718,7 @@ def edit_material_record(dataset_id, record_id):
     form = MaterialRecordForm(obj=record)
 
     # Debug logging
-    if request.method == 'POST':
+    if request.method == "POST":
         with open("/tmp/selenium_edit_debug.log", "a") as f:
             f.write(f"POST to edit: record_id={record_id}, form_valid={form.validate_on_submit()}\n")
             if not form.validate():
@@ -729,11 +729,11 @@ def edit_material_record(dataset_id, record_id):
         with open("/tmp/selenium_edit_debug.log", "a") as f:
             f.write(
                 "EDIT CALLED: record_id={}, old_value={}, new_value={}\n".format(
-                        record_id,
-                        record.property_value,
-                        form.property_value.data,
-                    )
+                    record_id,
+                    record.property_value,
+                    form.property_value.data,
                 )
+            )
         try:
             # Update record
             record.material_name = form.material_name.data

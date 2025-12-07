@@ -110,9 +110,7 @@ def test_profile_edit_page_requires_login(test_client):
 def test_profile_edit_page_loads_when_logged_in(test_client, integration_test_data):
     """Test profile edit page loads for logged-in users."""
     # Login first
-    test_client.post(
-        "/login", data={"email": "user1@example.com", "password": "test1234"}, follow_redirects=True
-    )
+    test_client.post("/login", data={"email": "user1@example.com", "password": "test1234"}, follow_redirects=True)
 
     # Access profile edit page
     response = test_client.get("/profile/edit")
@@ -135,9 +133,7 @@ def test_profile_summary_page_requires_login(test_client):
 def test_profile_summary_page_loads_when_logged_in(test_client, integration_test_data):
     """Test profile summary page loads for logged-in users."""
     # Login first
-    test_client.post(
-        "/login", data={"email": "user1@example.com", "password": "test1234"}, follow_redirects=True
-    )
+    test_client.post("/login", data={"email": "user1@example.com", "password": "test1234"}, follow_redirects=True)
 
     # Access profile summary page
     response = test_client.get("/profile/summary")
@@ -151,9 +147,7 @@ def test_profile_summary_page_loads_when_logged_in(test_client, integration_test
 def test_profile_summary_pagination(test_client, integration_test_data):
     """Test pagination on profile summary page."""
     # Login first
-    test_client.post(
-        "/login", data={"email": "user1@example.com", "password": "test1234"}, follow_redirects=True
-    )
+    test_client.post("/login", data={"email": "user1@example.com", "password": "test1234"}, follow_redirects=True)
 
     # Access profile summary with pagination
     response = test_client.get("/profile/summary?page=1")
@@ -206,10 +200,10 @@ def test_profile_model_attributes(test_client):
         db.session.add(profile)
         db.session.commit()
 
-        assert hasattr(profile, 'id')
-        assert hasattr(profile, 'user_id')
-        assert hasattr(profile, 'name')
-        assert hasattr(profile, 'surname')
+        assert hasattr(profile, "id")
+        assert hasattr(profile, "user_id")
+        assert hasattr(profile, "name")
+        assert hasattr(profile, "surname")
 
         # Cleanup
         db.session.delete(profile)

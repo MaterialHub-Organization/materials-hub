@@ -13,7 +13,6 @@ jobs:
   run-app:
     runs-on: ubuntu-24.04
 
-    # Global environment variables shared across services and steps
     env:
       POSTGRES_ROOT_PASSWORD: materialhub_root_password
       POSTGRES_DATABASE: materialhub_test
@@ -28,7 +27,6 @@ jobs:
       SECRET_KEY: test-secret-key-for-ci
 
     services:
-      # PostgreSQL service container
       postgres:
         image: postgres:17
         env:
@@ -45,54 +43,45 @@ jobs:
 
     steps:
 
-      # Step 1: Checkout the repository code
       - name: Checkout
         uses: actions/checkout@v5
 
-      # Step 2: Set up Python environment (version 3.12)
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: '3.12'
           cache: 'pip'
 
-      # Step 3: Remove local editable mode for rosemary dependency (not CI-friendly)
       - name: Delete rosemary editable mode
         run: sed -i '/rosemary @ file:\/\/\/app/d' requirements.txt
 
-      # Step 4: Install Python dependencies
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -e .
 
-      # Step 5: Install PostgreSQL 17 client (fix pg_dump version mismatch)
       - name: Install PostgreSQL 17 client
         run: |
           sudo apt update
           sudo apt install -y postgresql-client-17
 
-      # Step 6: Initialize database
       - name: Setup database
         run: |
           rosemary db:upgrade
           rosemary db:seed
 
-      # Step 7: Start Flask application in background
       - name: Start Flask application
         run: |
           flask run --host=0.0.0.0 --port=5000 &
           echo $! > flask.pid
           sleep 5
 
-      # Step 8: Verify application is running
       - name: Health check
         run: |
           curl -f http://localhost:5000/ || exit 1
           echo "Application is running successfully!"
 
-      # Step 9: Stop Flask application
       - name: Stop Flask application
         if: always()
         run: |
