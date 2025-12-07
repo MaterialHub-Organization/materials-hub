@@ -203,6 +203,7 @@ def test_hubfile_repository_get_by_id(test_client):
     """Test getting hubfile by id through repository."""
     with test_client.application.app_context():
         from app.modules.hubfile.repositories import HubfileRepository
+
         repo = HubfileRepository()
 
         # Create dependencies
@@ -240,6 +241,7 @@ def test_hubfile_repository_create(test_client):
     """Test creating hubfile through repository."""
     with test_client.application.app_context():
         from app.modules.hubfile.repositories import HubfileRepository
+
         repo = HubfileRepository()
 
         # Create dependencies
@@ -289,11 +291,11 @@ def test_hubfile_model_attributes(test_client):
         db.session.add(hubfile)
         db.session.commit()
 
-        assert hasattr(hubfile, 'id')
-        assert hasattr(hubfile, 'name')
-        assert hasattr(hubfile, 'checksum')
-        assert hasattr(hubfile, 'size')
-        assert hasattr(hubfile, 'feature_model_id')
+        assert hasattr(hubfile, "id")
+        assert hasattr(hubfile, "name")
+        assert hasattr(hubfile, "checksum")
+        assert hasattr(hubfile, "size")
+        assert hasattr(hubfile, "feature_model_id")
 
         # Cleanup
         db.session.delete(hubfile)
@@ -369,5 +371,3 @@ def test_hubfile_service_update(test_client):
         service.delete(hubfile.id)
         db.session.delete(feature_model)
         db.session.commit()
-
-

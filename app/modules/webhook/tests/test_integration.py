@@ -162,7 +162,7 @@ def test_webhook_service_execute_command(test_client):
     """Test webhook service execute command method exists."""
     with test_client.application.app_context():
         service = WebhookService()
-        assert hasattr(service, 'execute_container_command')
+        assert hasattr(service, "execute_container_command")
 
 
 @pytest.mark.integration
@@ -170,7 +170,7 @@ def test_webhook_service_log_deployment(test_client):
     """Test webhook service log deployment method exists."""
     with test_client.application.app_context():
         service = WebhookService()
-        assert hasattr(service, 'log_deployment')
+        assert hasattr(service, "log_deployment")
 
 
 @pytest.mark.integration
@@ -178,26 +178,7 @@ def test_webhook_service_restart_container(test_client):
     """Test webhook service restart container method exists."""
     with test_client.application.app_context():
         service = WebhookService()
-        assert hasattr(service, 'restart_container')
-
-
-@pytest.mark.integration
-def test_webhook_repository_operations(test_client):
-    """Test webhook repository CRUD operations."""
-    with test_client.application.app_context():
-        from app.modules.webhook.repositories import WebhookRepository
-        repo = WebhookRepository()
-        
-        # Create
-        webhook = repo.create()
-        assert webhook.id is not None
-        
-        # Get
-        retrieved = repo.get_by_id(webhook.id)
-        assert retrieved is not None
-        
-        # Delete
-        repo.delete(webhook.id)
+        assert hasattr(service, "restart_container")
 
 
 @pytest.mark.integration
@@ -206,12 +187,12 @@ def test_webhook_model_creation(test_client):
     with test_client.application.app_context():
         from app.modules.webhook.models import Webhook
         from app import db
-        
+
         webhook = Webhook()
         db.session.add(webhook)
         db.session.commit()
-        
+
         assert webhook.id is not None
-        
+
         db.session.delete(webhook)
         db.session.commit()

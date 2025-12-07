@@ -285,7 +285,5 @@ def test_explore_dataset_metadata_in_results(test_client, integration_test_data)
         results = service.filter(query="")
         if len(results) > 0:
             dataset = results[0]
-            assert hasattr(dataset, 'ds_meta_data')
+            assert hasattr(dataset, "ds_meta_data")
             assert dataset.ds_meta_data is not None
-
-

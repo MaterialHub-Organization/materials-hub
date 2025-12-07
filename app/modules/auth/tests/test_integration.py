@@ -218,7 +218,9 @@ def test_user_count(test_client, integration_test_data):
 def test_login_with_remember_me(test_client, integration_test_data):
     """Test login with remember me functionality."""
     response = test_client.post(
-        "/login", data={"email": "user1@example.com", "password": "test1234", "remember_me": True}, follow_redirects=True
+        "/login",
+        data={"email": "user1@example.com", "password": "test1234", "remember_me": True},
+        follow_redirects=True,
     )
 
     assert response.status_code == 200
@@ -232,15 +234,13 @@ def test_auth_service_create_with_profile(test_client):
     """Test creating user with profile through AuthenticationService."""
     with test_client.application.app_context():
         from app.modules.auth.services import AuthenticationService
+
         service = AuthenticationService()
-        
+
         user = service.create_with_profile(
-            email="servicetest@example.com",
-            password="testpass123",
-            name="Service",
-            surname="Tester"
+            email="servicetest@example.com", password="testpass123", name="Service", surname="Tester"
         )
-        
+
         assert user is not None
         assert user.email == "servicetest@example.com"
         assert user.profile.name == "Service"
@@ -252,8 +252,9 @@ def test_auth_repository_get_by_email(test_client, integration_test_data):
     """Test getting user by email through repository."""
     with test_client.application.app_context():
         from app.modules.auth.repositories import UserRepository
+
         repo = UserRepository()
-        
+
         user = repo.get_by_email("user1@example.com")
         assert user is not None
         assert user.email == "user1@example.com"
@@ -264,8 +265,9 @@ def test_auth_repository_create_user(test_client):
     """Test creating user through repository."""
     with test_client.application.app_context():
         from app.modules.auth.repositories import UserRepository
+
         repo = UserRepository()
-        
+
         user = repo.create(email="repouser@example.com", password="hashed_password")
         assert user is not None
         assert user.email == "repouser@example.com"
@@ -296,18 +298,16 @@ def test_multiple_users_creation(test_client):
     """Test creating multiple users."""
     with test_client.application.app_context():
         from app.modules.auth.services import AuthenticationService
+
         service = AuthenticationService()
-        
+
         users = []
         for i in range(3):
             user = service.create_with_profile(
-                email=f"bulkuser{i}@example.com",
-                password=f"pass{i}",
-                name=f"User{i}",
-                surname=f"Test{i}"
+                email=f"bulkuser{i}@example.com", password=f"pass{i}", name=f"User{i}", surname=f"Test{i}"
             )
             users.append(user)
-        
+
         assert len(users) == 3
         for user in users:
             assert user.id is not None
@@ -317,9 +317,7 @@ def test_multiple_users_creation(test_client):
 def test_login_route_post_valid(test_client, integration_test_data):
     """Test login route with valid credentials."""
     response = test_client.post(
-        "/login",
-        data={"email": "user1@example.com", "password": "test1234"},
-        follow_redirects=True
+        "/login", data={"email": "user1@example.com", "password": "test1234"}, follow_redirects=True
     )
     assert response.status_code == 200
     # Logout
@@ -330,9 +328,7 @@ def test_login_route_post_valid(test_client, integration_test_data):
 def test_login_route_post_invalid(test_client):
     """Test login route with invalid credentials."""
     response = test_client.post(
-        "/login",
-        data={"email": "invalid@example.com", "password": "wrongpass"},
-        follow_redirects=True
+        "/login", data={"email": "invalid@example.com", "password": "wrongpass"}, follow_redirects=True
     )
     assert response.status_code == 200
     assert b"Login" in response.data
@@ -349,11 +345,7 @@ def test_signup_route_get(test_client):
 def test_logout_route(test_client, integration_test_data):
     """Test logout route."""
     # Login first
-    test_client.post(
-        "/login",
-        data={"email": "user1@example.com", "password": "test1234"},
-        follow_redirects=True
-    )
+    test_client.post("/login", data={"email": "user1@example.com", "password": "test1234"}, follow_redirects=True)
 
     # Logout
     response = test_client.get("/logout", follow_redirects=True)

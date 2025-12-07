@@ -182,7 +182,6 @@ def test_zenodo_params_configuration(test_client):
         assert "access_token" in service.params
 
 
-
 @pytest.mark.integration
 def test_zenodo_service_test_connection(test_client):
     """Test Zenodo connection test method."""
@@ -197,7 +196,7 @@ def test_zenodo_model_attributes(test_client):
     """Test Zenodo model attributes."""
     with test_client.application.app_context():
         zenodo = Zenodo()
-        assert hasattr(zenodo, 'id')
+        assert hasattr(zenodo, "id")
 
 
 @pytest.mark.integration
@@ -214,6 +213,7 @@ def test_zenodo_repository_initialization(test_client):
     """Test ZenodoRepository initialization."""
     with test_client.application.app_context():
         from app.modules.zenodo.repositories import ZenodoRepository
+
         repo = ZenodoRepository()
         assert repo is not None
 
@@ -225,4 +225,3 @@ def test_zenodo_get_by_id_nonexistent(test_client):
         service = ZenodoService()
         result = service.get_by_id(999999)
         assert result is None
-

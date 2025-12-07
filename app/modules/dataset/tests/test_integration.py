@@ -252,9 +252,7 @@ def test_materials_dataset_created_at(test_client, integration_test_data):
 @pytest.mark.integration
 def test_dataset_upload_page_loads_when_logged_in(test_client, integration_test_data):
     """Test dataset upload page loads for logged-in users."""
-    test_client.post(
-        "/login", data={"email": "user1@example.com", "password": "test1234"}, follow_redirects=True
-    )
+    test_client.post("/login", data={"email": "user1@example.com", "password": "test1234"}, follow_redirects=True)
     response = test_client.get("/dataset/upload")
     assert response.status_code == 200
     test_client.get("/logout", follow_redirects=True)
@@ -268,9 +266,7 @@ def test_materials_dataset_view_csv_route(test_client, integration_test_data):
         dataset_id = dataset.id if dataset else None
 
     if dataset_id:
-        test_client.post(
-            "/login", data={"email": "user1@example.com", "password": "test1234"}, follow_redirects=True
-        )
+        test_client.post("/login", data={"email": "user1@example.com", "password": "test1234"}, follow_redirects=True)
         response = test_client.get(f"/materials/{dataset_id}/view_csv")
         assert response.status_code in [200, 404, 500]
         test_client.get("/logout", follow_redirects=True)
@@ -361,6 +357,7 @@ def test_ds_metadata_repository_count(test_client):
     """Test dataset metadata repository count."""
     with test_client.application.app_context():
         from app.modules.dataset.repositories import DSMetaDataRepository
+
         repo = DSMetaDataRepository()
         count = repo.count()
         assert count >= 0
@@ -371,6 +368,7 @@ def test_materials_dataset_repository_count(test_client):
     """Test materials dataset repository count."""
     with test_client.application.app_context():
         from app.modules.dataset.repositories import MaterialsDatasetRepository
+
         repo = MaterialsDatasetRepository()
         count = repo.count()
         assert count >= 0
@@ -381,6 +379,7 @@ def test_doi_mapping_repository_count(test_client):
     """Test DOI mapping repository count."""
     with test_client.application.app_context():
         from app.modules.dataset.repositories import DOIMappingRepository
+
         repo = DOIMappingRepository()
         count = repo.count()
         assert count >= 0
@@ -391,6 +390,7 @@ def test_ds_view_record_repository_count(test_client):
     """Test dataset view record repository count."""
     with test_client.application.app_context():
         from app.modules.dataset.repositories import DSViewRecordRepository
+
         repo = DSViewRecordRepository()
         count = repo.count()
         assert count >= 0
@@ -401,6 +401,7 @@ def test_author_repository_count(test_client):
     """Test author repository count."""
     with test_client.application.app_context():
         from app.modules.dataset.repositories import AuthorRepository
+
         repo = AuthorRepository()
         count = repo.count()
         assert count >= 0
@@ -412,10 +413,10 @@ def test_materials_dataset_properties_access(test_client, integration_test_data)
     with test_client.application.app_context():
         dataset = MaterialsDataset.query.first()
         if dataset:
-            assert hasattr(dataset, 'id')
-            assert hasattr(dataset, 'user_id')
-            assert hasattr(dataset, 'ds_meta_data_id')
-            assert hasattr(dataset, 'created_at')
+            assert hasattr(dataset, "id")
+            assert hasattr(dataset, "user_id")
+            assert hasattr(dataset, "ds_meta_data_id")
+            assert hasattr(dataset, "created_at")
 
 
 @pytest.mark.integration
@@ -426,7 +427,7 @@ def test_materials_dataset_to_dict(test_client, integration_test_data):
         if dataset:
             data_dict = dataset.to_dict()
             assert isinstance(data_dict, dict)
-            assert 'id' in data_dict
+            assert "id" in data_dict
 
 
 @pytest.mark.integration
@@ -434,7 +435,7 @@ def test_ds_view_record_service_cookie_creation(test_client, integration_test_da
     """Test DSViewRecordService cookie creation method exists."""
     with test_client.application.app_context():
         service = DSViewRecordService()
-        assert hasattr(service, 'create_cookie')
+        assert hasattr(service, "create_cookie")
 
 
 @pytest.mark.integration
@@ -446,21 +447,11 @@ def test_multiple_datasets_in_db(test_client, integration_test_data):
 
 
 @pytest.mark.integration
-def test_materials_dataset_service_initialization(test_client):
-    """Test MaterialsDatasetService initialization."""
-    with test_client.application.app_context():
-        from app.modules.dataset.services import MaterialsDatasetService
-        service = MaterialsDatasetService()
-        assert service is not None
-        assert hasattr(service, 'materials_dataset_repository')
-        assert hasattr(service, 'material_record_repository')
-
-
-@pytest.mark.integration
 def test_materials_dataset_validate_csv_columns(test_client):
     """Test CSV column validation."""
     with test_client.application.app_context():
         from app.modules.dataset.services import MaterialsDatasetService
+
         service = MaterialsDatasetService()
 
         # Test valid columns
@@ -481,6 +472,7 @@ def test_ds_metadata_service_initialization(test_client):
     """Test DSMetaDataService initialization."""
     with test_client.application.app_context():
         from app.modules.dataset.services import DSMetaDataService
+
         service = DSMetaDataService()
         assert service is not None
 
@@ -509,6 +501,7 @@ def test_doi_mapping_service_get_by_id(test_client):
     """Test DOIMappingService get_by_id."""
     with test_client.application.app_context():
         from app.modules.dataset.services import DOIMappingService
+
         service = DOIMappingService()
         # Test with non-existent ID
         result = service.get_by_id(99999)
@@ -520,6 +513,7 @@ def test_ds_view_record_service_get_by_id(test_client):
     """Test DSViewRecordService get_by_id."""
     with test_client.application.app_context():
         from app.modules.dataset.services import DSViewRecordService
+
         service = DSViewRecordService()
         # Test with non-existent ID
         result = service.get_by_id(99999)

@@ -148,4 +148,3 @@ def test_featuremodel_count(test_client):
         # Cleanup
         service.delete(feature_model.id)
         assert service.count() == initial_count
-

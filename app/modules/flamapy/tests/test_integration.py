@@ -134,4 +134,3 @@ def test_multiple_flamapy_records(test_client):
             service.delete(record.id)
 
         assert service.count() == initial_count
-

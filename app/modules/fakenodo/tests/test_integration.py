@@ -2,8 +2,6 @@
 Integration tests for fakenodo module.
 """
 
-import io
-
 import pytest
 
 from app import db
