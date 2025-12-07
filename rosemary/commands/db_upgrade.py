@@ -77,26 +77,30 @@ def db_upgrade(no_backup):
                 backup_file = os.path.join(backups_dir, f"pre-upgrade_{timestamp}.sql")
 
                 # Get database credentials from environment
-                db_host = os.getenv("MARIADB_HOSTNAME", "localhost")
-                db_port = os.getenv("MARIADB_PORT", "3306")
-                db_user = os.getenv("MARIADB_USER", "root")
-                db_password = os.getenv("MARIADB_PASSWORD", "")
+                db_host = os.getenv("POSTGRES_HOSTNAME", "localhost")
+                db_port = os.getenv("POSTGRES_PORT", "5432")
+                db_user = os.getenv("POSTGRES_USER", "postgres")
+                db_password = os.getenv("POSTGRES_PASSWORD", "")
 
-                # Create mysqldump command
+                # Create pg_dump command
                 dump_cmd = [
-                    "mysqldump",
+                    "pg_dump",
                     f"--host={db_host}",
                     f"--port={db_port}",
-                    f"--user={db_user}",
-                    f"--password={db_password}",
-                    "--single-transaction",
-                    "--routines",
-                    "--triggers",
+                    f"--username={db_user}",
+                    "--no-password",
+                    "--format=plain",
+                    "--clean",
+                    "--if-exists",
                     db_name,
                 ]
 
+                # Set PGPASSWORD environment variable for pg_dump
+                env = os.environ.copy()
+                env["PGPASSWORD"] = db_password
+
                 with open(backup_file, "w") as f:
-                    result = subprocess.run(dump_cmd, stdout=f, stderr=subprocess.PIPE, timeout=120)
+                    result = subprocess.run(dump_cmd, stdout=f, stderr=subprocess.PIPE, timeout=120, env=env)
 
                 if result.returncode == 0:
                     # Get file size
@@ -116,7 +120,7 @@ def db_upgrade(no_backup):
 
             except FileNotFoundError:
                 click.echo(click.style(" ⚠", fg="yellow"))
-                click.echo(click.style("  Warning: mysqldump not found. Skipping backup.", fg="yellow"))
+                click.echo(click.style("  Warning: pg_dump not found. Skipping backup.", fg="yellow"))
                 if not click.confirm("  Continue without backup?", default=False):
                     return
                 backup_file = None
@@ -163,16 +167,20 @@ def db_upgrade(no_backup):
                     if click.confirm("  Would you like to restore the backup?", default=True):
                         click.echo(click.style("\n  Restoring backup...", fg="yellow"), nl=False)
                         try:
+                            env_restore = os.environ.copy()
+                            env_restore["PGPASSWORD"] = db_password
                             restore_cmd = [
-                                "mysql",
+                                "psql",
                                 f"--host={db_host}",
                                 f"--port={db_port}",
-                                f"--user={db_user}",
-                                f"--password={db_password}",
+                                f"--username={db_user}",
+                                "--no-password",
                                 db_name,
                             ]
                             with open(backup_file, "r") as f:
-                                restore_result = subprocess.run(restore_cmd, stdin=f, capture_output=True, timeout=120)
+                                restore_result = subprocess.run(
+                                    restore_cmd, stdin=f, capture_output=True, timeout=120, env=env_restore
+                                )
                             if restore_result.returncode == 0:
                                 click.echo(click.style(" ✓", fg="green"))
                                 click.echo(click.style("  Backup restored successfully", fg="green"))

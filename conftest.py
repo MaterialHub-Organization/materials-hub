@@ -47,22 +47,18 @@ def test_client(test_app):
             db.session.rollback()
             db.session.remove()
 
-            # Drop all tables with foreign key checks disabled
+            # Drop all tables (CASCADE handles foreign key dependencies)
             with db.engine.begin() as conn:
-                conn.execute(db.text("SET FOREIGN_KEY_CHECKS=0"))
-
                 # Get all table names
                 result = conn.execute(db.text(
                     "SELECT table_name FROM information_schema.tables "
-                    "WHERE table_schema = DATABASE()"
+                    "WHERE table_schema = 'public'"
                 ))
                 tables = [row[0] for row in result]
 
-                # Drop each table
+                # Drop each table with CASCADE
                 for table in tables:
-                    conn.execute(db.text(f"DROP TABLE IF EXISTS `{table}`"))
-
-                conn.execute(db.text("SET FOREIGN_KEY_CHECKS=1"))
+                    conn.execute(db.text(f'DROP TABLE IF EXISTS "{table}" CASCADE'))
 
             # Recreate all tables
             db.create_all()
@@ -87,36 +83,29 @@ def test_client(test_app):
             db.session.rollback()
             db.session.remove()
 
-            # Drop all tables with foreign key checks disabled
+            # Drop all tables (CASCADE handles foreign key dependencies)
             # (next test will recreate them in setup)
             with db.engine.begin() as conn:
-                # Disable foreign key checks
-                conn.execute(db.text("SET FOREIGN_KEY_CHECKS=0"))
-                conn.execute(db.text("SET SESSION sql_mode='NO_AUTO_VALUE_ON_ZERO'"))
-
                 # Get all table names
                 result = conn.execute(db.text(
                     "SELECT table_name FROM information_schema.tables "
-                    "WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE'"
+                    "WHERE table_schema = 'public' AND table_type = 'BASE TABLE'"
                 ))
                 tables = [row[0] for row in result]
 
                 # Truncate all tables first (clears data)
                 for table in tables:
                     try:
-                        conn.execute(db.text(f"TRUNCATE TABLE `{table}`"))
+                        conn.execute(db.text(f'TRUNCATE TABLE "{table}" CASCADE'))
                     except Exception:
                         pass  # Ignore errors, will drop anyway
 
-                # Drop each table
+                # Drop each table with CASCADE
                 for table in tables:
                     try:
-                        conn.execute(db.text(f"DROP TABLE `{table}`"))
+                        conn.execute(db.text(f'DROP TABLE IF EXISTS "{table}" CASCADE'))
                     except Exception:
                         pass  # Ignore errors
-
-                # Re-enable foreign key checks
-                conn.execute(db.text("SET FOREIGN_KEY_CHECKS=1"))
 
 
 @pytest.fixture(scope="function")
@@ -125,23 +114,15 @@ def clean_database(test_app):
         # Rollback any pending transactions
         db.session.rollback()
         db.session.remove()
-        # Disable foreign key checks for MySQL
-        db.session.execute(db.text("SET FOREIGN_KEY_CHECKS=0;"))
-        db.session.commit()
+        # PostgreSQL: db.drop_all() with CASCADE handles foreign keys
         db.drop_all()
-        db.session.execute(db.text("SET FOREIGN_KEY_CHECKS=1;"))
-        db.session.commit()
         db.create_all()
         yield
         # Rollback any pending transactions
         db.session.rollback()
         db.session.remove()
-        # Disable foreign key checks for MySQL
-        db.session.execute(db.text("SET FOREIGN_KEY_CHECKS=0;"))
-        db.session.commit()
+        # PostgreSQL: db.drop_all() with CASCADE handles foreign keys
         db.drop_all()
-        db.session.execute(db.text("SET FOREIGN_KEY_CHECKS=1;"))
-        db.session.commit()
         db.create_all()
 
 
