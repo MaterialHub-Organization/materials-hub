@@ -10,7 +10,11 @@ services:
       pip install -r requirements.txt
       pip install -e .
 
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    startCommand: |
+      # Configurar la base de datos si está vacía
+      rosemary db:setup
+      # Arrancar la aplicación con Gunicorn
+      gunicorn app:app --bind 0.0.0.0:$PORT
 
     envVars:
       - key: FLASK_ENV
@@ -34,3 +38,5 @@ databases:
   - name: materialhub-db
     plan: free
     databaseName: materialhub
+    user: materialhub_user
+    password: materialhub_password
