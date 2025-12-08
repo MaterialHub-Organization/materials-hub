@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Salir si hay error
+echo "✅ build.sh iniciado"
 set -o errexit
 
 # Instalar dependencias
@@ -15,3 +16,4 @@ done
 
 # Setup de la base de datos y seeders
 rosemary db:setup
+echo "✅ build.sh finalizado"
