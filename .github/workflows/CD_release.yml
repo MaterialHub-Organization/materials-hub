@@ -1,23 +1,28 @@
 # ----------------------------------------------------------------------------
 # Auto Release Workflow
 # This workflow automatically creates a new release when all CI checks pass on main.
-# It generates a version tag, creates a GitHub release with changelog, and publishes artifacts.
+# Uses Semantic Versioning based on conventional commits (feat, fix, BREAKING CHANGE).
 # ----------------------------------------------------------------------------
 
 name: Auto Release
 
 on:
   workflow_run:
-    workflows: ["Pytest", "Python Lint", "Run Application", "Performance Tests", "E2E Tests"]
+    workflows:
+      - "All Tests Passed"
     types:
       - completed
     branches:
       - main
 
+# Prevenir múltiples releases al mismo tiempo
+concurrency:
+  group: release-${{ github.sha }}
+  cancel-in-progress: true
+
 jobs:
-  check-and-release:
+  semantic-release:
     runs-on: ubuntu-24.04
-    # Only run if all required workflows succeeded
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
@@ -26,132 +31,150 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # Necesitamos todo el historial para semantic versioning
           ref: main
 
-      # Step 2: Wait for all workflows to complete
-      - name: Wait for all workflows
-        uses: actions/github-script@v7
-        id: check-workflows
-        with:
-          script: |
-            const sha = '${{ github.event.workflow_run.head_sha }}';
-            console.log(`Checking workflows for commit: ${sha}`);
-
-            // Wait for workflows to register
-            await new Promise(resolve => setTimeout(resolve, 15000));
-
-            const requiredWorkflows = ['Pytest', 'Python Lint', 'Run Application', 'Performance Tests', 'E2E Tests'];
-
-            const { data: checkRuns } = await github.rest.checks.listForRef({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: sha
-            });
-
-            console.log(`Found ${checkRuns.check_runs.length} check runs`);
-
-            const relevantChecks = checkRuns.check_runs.filter(check =>
-              requiredWorkflows.some(workflow => check.name.includes(workflow))
-            );
-
-            console.log('Workflow status:');
-            relevantChecks.forEach(check => {
-              console.log(`  - ${check.name}: ${check.conclusion}`);
-            });
-
-            const allPassed = relevantChecks.every(check =>
-              check.conclusion === 'success'
-            );
-
-            if (!allPassed) {
-              core.setFailed('Not all required workflows passed');
-              return false;
-            }
-
-            console.log('✅ All workflows passed! Ready to create release.');
-            return true;
-
-      # Step 3: Get current version from pyproject.toml
-      - name: Get current version
-        id: get-version
+      # Step 2: Analizar commits y determinar nueva versión
+      - name: Determinar nueva versión
+        id: semver
         run: |
-          VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
-          echo "current_version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Current version: $VERSION"
+          # Obtener el último tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Último tag: $LAST_TAG"
 
-      # Step 4: Check if tag already exists
-      - name: Check if tag exists
-        id: check-tag
-        run: |
-          VERSION="${{ steps.get-version.outputs.current_version }}"
-          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
-            echo "tag_exists=true" >> $GITHUB_OUTPUT
-            echo "⚠️ Tag v$VERSION already exists. Skipping release."
-          else
-            echo "tag_exists=false" >> $GITHUB_OUTPUT
-            echo "✅ Tag v$VERSION does not exist. Proceeding with release."
+          # Obtener versión actual sin 'v'
+          CURRENT_VERSION=${LAST_TAG#v}
+          echo "Versión actual: $CURRENT_VERSION"
+
+          # Parsear versión (MAJOR.MINOR.PATCH)
+          MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
+          MINOR=$(echo $CURRENT_VERSION | cut -d. -f2)
+          PATCH=$(echo $CURRENT_VERSION | cut -d. -f3)
+
+          # Analizar commits desde el último tag
+          COMMITS=$(git log ${LAST_TAG}..HEAD --pretty=format:"%s" 2>/dev/null || git log --pretty=format:"%s")
+
+          # Determinar tipo de bump basado en conventional commits
+          BUMP="none"
+
+          if echo "$COMMITS" | grep -iq "BREAKING CHANGE"; then
+            BUMP="major"
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+          elif echo "$COMMITS" | grep -Eq "^(feat|feature|✨)"; then
+            BUMP="minor"
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          elif echo "$COMMITS" | grep -Eq "^(fix|🐛|bugfix)"; then
+            BUMP="patch"
+            PATCH=$((PATCH + 1))
           fi
 
-      # Step 5: Generate changelog
-      - name: Generate Changelog
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+
+          echo "Tipo de bump: $BUMP"
+          echo "Nueva versión: $NEW_VERSION"
+
+          echo "bump=$BUMP" >> $GITHUB_OUTPUT
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "last_tag=$LAST_TAG" >> $GITHUB_OUTPUT
+
+      # Step 3: Salir si no hay cambios significativos
+      - name: Verificar si hay cambios
+        if: steps.semver.outputs.bump == 'none'
+        run: |
+          echo "⏭️  No hay cambios significativos (feat/fix/BREAKING). Saltando release."
+          exit 0
+
+      # Step 4: Actualizar pyproject.toml con nueva versión
+      - name: Actualizar pyproject.toml
+        if: steps.semver.outputs.bump != 'none'
+        run: |
+          NEW_VERSION="${{ steps.semver.outputs.new_version }}"
+          sed -i "s/^version = .*/version = \"$NEW_VERSION\"/" pyproject.toml
+          echo "✅ pyproject.toml actualizado a v$NEW_VERSION"
+
+      # Step 5: Generar changelog
+      - name: Generar Changelog
         id: changelog
-        if: steps.check-tag.outputs.tag_exists == 'false'
+        if: steps.semver.outputs.bump != 'none'
         run: |
-          VERSION="${{ steps.get-version.outputs.current_version }}"
+          NEW_VERSION="${{ steps.semver.outputs.new_version }}"
+          LAST_TAG="${{ steps.semver.outputs.last_tag }}"
 
-          # Get the last tag
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          # Generar changelog agrupado por tipo
+          echo "# Release v${NEW_VERSION}" > RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+          echo "## 📝 Cambios" >> RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
 
-          if [ -z "$LAST_TAG" ]; then
-            echo "First release - generating changelog from all commits"
-            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges)
-          else
-            echo "Generating changelog from $LAST_TAG to HEAD"
-            COMMITS=$(git log ${LAST_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
+          # Features
+          FEATURES=$(git log ${LAST_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges | grep -E "^- (feat|feature|✨)" || echo "")
+          if [ ! -z "$FEATURES" ]; then
+            echo "### ✨ Nuevas Funcionalidades" >> RELEASE_NOTES.md
+            echo "$FEATURES" >> RELEASE_NOTES.md
+            echo "" >> RELEASE_NOTES.md
           fi
 
-          # Create changelog file
-          cat > RELEASE_NOTES.md << EOF
-          # Release v${VERSION}
+          # Fixes
+          FIXES=$(git log ${LAST_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges | grep -E "^- (fix|🐛|bugfix)" || echo "")
+          if [ ! -z "$FIXES" ]; then
+            echo "### 🐛 Correcciones" >> RELEASE_NOTES.md
+            echo "$FIXES" >> RELEASE_NOTES.md
+            echo "" >> RELEASE_NOTES.md
+          fi
 
-          ## What's Changed
+          # Other changes
+          OTHER=$(git log ${LAST_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges | grep -vE "^- (feat|feature|✨|fix|🐛|bugfix)" || echo "")
+          if [ ! -z "$OTHER" ]; then
+            echo "### 🔧 Otros Cambios" >> RELEASE_NOTES.md
+            echo "$OTHER" >> RELEASE_NOTES.md
+            echo "" >> RELEASE_NOTES.md
+          fi
 
-          ${COMMITS}
+          echo "## ✅ CI Status" >> RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+          echo "Todos los tests pasaron exitosamente:" >> RELEASE_NOTES.md
+          echo "- ✅ Tests Unitarios" >> RELEASE_NOTES.md
+          echo "- ✅ Tests de Integración" >> RELEASE_NOTES.md
+          echo "- ✅ Tests de Interfaz" >> RELEASE_NOTES.md
+          echo "- ✅ Tests de Carga" >> RELEASE_NOTES.md
+          echo "- ✅ Python Lint" >> RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+          echo "**Changelog Completo**: https://github.com/${{ github.repository }}/compare/${LAST_TAG}...v${NEW_VERSION}" >> RELEASE_NOTES.md
 
-          ## CI Status
-
-          All automated checks passed:
-          - ✅ Python Lint
-          - ✅ Pytest (Unit + Integration)
-          - ✅ Run Application
-          - ✅ Performance Tests
-          - ✅ E2E Tests
-
-          **Full Changelog**: https://github.com/${{ github.repository }}/compare/${LAST_TAG}...v${VERSION}
-          EOF
-
-          echo "Changelog generated!"
+          echo "📄 Changelog generado"
           cat RELEASE_NOTES.md
 
-      # Step 6: Create Git tag
-      - name: Create tag
-        if: steps.check-tag.outputs.tag_exists == 'false'
+      # Step 6: Commit y push de pyproject.toml actualizado
+      - name: Commit nueva versión
+        if: steps.semver.outputs.bump != 'none'
         run: |
-          VERSION="${{ steps.get-version.outputs.current_version }}"
+          NEW_VERSION="${{ steps.semver.outputs.new_version }}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "v$VERSION" -m "Release v$VERSION"
-          git push origin "v$VERSION"
-          echo "✅ Tag v$VERSION created and pushed"
+          git add pyproject.toml
+          git commit -m "chore(release): bump version to v${NEW_VERSION} [skip ci]"
+          git push origin main
+          echo "✅ Versión commitada"
 
-      # Step 7: Create GitHub Release
-      - name: Create GitHub Release
-        if: steps.check-tag.outputs.tag_exists == 'false'
+      # Step 7: Crear Git tag
+      - name: Crear tag
+        if: steps.semver.outputs.bump != 'none'
+        run: |
+          NEW_VERSION="${{ steps.semver.outputs.new_version }}"
+          git tag -a "v$NEW_VERSION" -m "Release v$NEW_VERSION"
+          git push origin "v$NEW_VERSION"
+          echo "✅ Tag v$NEW_VERSION creado y pusheado"
+
+      # Step 8: Crear GitHub Release
+      - name: Crear GitHub Release
+        if: steps.semver.outputs.bump != 'none'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.get-version.outputs.current_version }}
-          name: Release v${{ steps.get-version.outputs.current_version }}
+          tag_name: v${{ steps.semver.outputs.new_version }}
+          name: Release v${{ steps.semver.outputs.new_version }}
           body_path: RELEASE_NOTES.md
           draft: false
           prerelease: false
@@ -159,33 +182,18 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Step 8: Generate release summary
-      - name: Release Summary
-        if: steps.check-tag.outputs.tag_exists == 'false'
+      # Step 9: Resumen
+      - name: Resumen del Release
+        if: steps.semver.outputs.bump != 'none'
         run: |
-          VERSION="${{ steps.get-version.outputs.current_version }}"
-          echo "## 🚀 Release Created!" >> $GITHUB_STEP_SUMMARY
+          NEW_VERSION="${{ steps.semver.outputs.new_version }}"
+          BUMP="${{ steps.semver.outputs.bump }}"
+          echo "## 🚀 Release Creado!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Version:** v$VERSION" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit:** ${{ github.event.workflow_run.head_sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Versión:** v$NEW_VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "**Tipo:** $BUMP" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Release Assets" >> $GITHUB_STEP_SUMMARY
-          echo "- [View Release](https://github.com/${{ github.repository }}/releases/tag/v$VERSION)" >> $GITHUB_STEP_SUMMARY
-          echo "- [Download Source Code](https://github.com/${{ github.repository }}/archive/refs/tags/v$VERSION.zip)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
-          echo "1. Update version in pyproject.toml for next release" >> $GITHUB_STEP_SUMMARY
-          echo "2. Continue development on develop branch" >> $GITHUB_STEP_SUMMARY
-
-      # Step 9: Notify if skipped
-      - name: Skipped Summary
-        if: steps.check-tag.outputs.tag_exists == 'true'
-        run: |
-          VERSION="${{ steps.get-version.outputs.current_version }}"
-          echo "## ⚠️ Release Skipped" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Tag v$VERSION already exists." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "To create a new release:" >> $GITHUB_STEP_SUMMARY
-          echo "1. Update version in pyproject.toml" >> $GITHUB_STEP_SUMMARY
-          echo "2. Commit and push to main" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 Enlaces" >> $GITHUB_STEP_SUMMARY
+          echo "- [Ver Release](https://github.com/${{ github.repository }}/releases/tag/v$NEW_VERSION)" >> $GITHUB_STEP_SUMMARY
+          echo "- [Descargar Código](https://github.com/${{ github.repository }}/archive/refs/tags/v$NEW_VERSION.zip)" >> $GITHUB_STEP_SUMMARY

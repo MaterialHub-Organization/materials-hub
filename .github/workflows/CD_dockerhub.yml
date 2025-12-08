@@ -1,87 +1,112 @@
 # ----------------------------------------------------------------------------
 # Publish image in Docker Hub Workflow
-# This workflow builds and pushes a Docker image to Docker Hub whenever
-# a new release is published on GitHub or when code is merged into main.
+# This workflow builds and pushes a Docker image to Docker Hub after a successful release.
+# Runs in parallel with Deploy to Render.
 # ----------------------------------------------------------------------------
 
-name: Publish image in Docker Hub
+name: Publish to Docker Hub
 
 on:
-  # Se dispara cuando hay push a main (por ejemplo, tras un merge)
-  push:
+  workflow_run:
+    workflows:
+      - "Auto Release"
+    types:
+      - completed
     branches:
       - main
-
-  # Se dispara también cuando se publica un release
-  release:
-    types: [published]
 
 jobs:
   build-and-push:
     runs-on: ubuntu-24.04
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       # 1. Check out del repositorio
       - name: Check out the repo
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # Necesario para obtener tags
 
-      # 2. Calcular IMAGE, TAG y PUSH según el tipo de evento
+      # 2. Obtener el último tag de versión creado por el release
+      - name: Get latest version tag
+        id: get-tag
+        run: |
+          # Obtener el último tag
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Tag encontrado: $LATEST_TAG"
+          echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "version=${LATEST_TAG#v}" >> $GITHUB_OUTPUT
+
+      # 3. Configurar metadata de la imagen
       - name: Set image metadata
         id: meta
         run: |
           IMAGE=${{ secrets.DOCKER_USER }}/uvlhub
+          TAG=${{ steps.get-tag.outputs.tag }}
+          VERSION=${{ steps.get-tag.outputs.version }}
 
-          if [ "${{ github.event_name }}" = "release" ]; then
-            # Si es un release, usamos el tag del release y hacemos push
-            TAG=${{ github.event.release.tag_name }}
-            PUSH=true
-          else
-            # Si es un push a main, usamos el SHA corto del commit
-            TAG=${GITHUB_SHA::7}
-            PUSH=true
-          fi
+          echo "Building Docker image:"
+          echo "  Image: $IMAGE"
+          echo "  Tag: $TAG"
+          echo "  Version: $VERSION"
 
           echo "IMAGE=$IMAGE" >> $GITHUB_OUTPUT
           echo "TAG=$TAG" >> $GITHUB_OUTPUT
-          echo "PUSH=$PUSH" >> $GITHUB_OUTPUT
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
 
-      # 3. Login en Docker Hub (siempre que vayamos a hacer push)
+      # 4. Login en Docker Hub
       - name: Log in to Docker Hub
-        if: steps.meta.outputs.PUSH == 'true'
         uses: docker/login-action@v3.6.0
         with:
           username: ${{ secrets.DOCKER_USER }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # 4. Build de la imagen
+      # 5. Build de la imagen con múltiples tags
       - name: Build Docker image
         env:
           IMAGE: ${{ steps.meta.outputs.IMAGE }}
           TAG: ${{ steps.meta.outputs.TAG }}
+          VERSION: ${{ steps.meta.outputs.VERSION }}
         run: |
-          echo "Building image: $IMAGE:$TAG"
+          echo "🐳 Building Docker image..."
+          echo "  Image: $IMAGE"
+          echo "  Tags: $TAG, $VERSION, latest"
+
           docker build \
-            --build-arg VERSION_TAG=$TAG \
+            --build-arg VERSION_TAG=$VERSION \
             -t $IMAGE:$TAG \
+            -t $IMAGE:$VERSION \
+            -t $IMAGE:latest \
             -f docker/images/Dockerfile.prod .
 
-      # 5. Push de la imagen
-      - name: Push Docker image
-        if: steps.meta.outputs.PUSH == 'true'
-        env:
-          IMAGE: ${{ steps.meta.outputs.IMAGE }}
-          TAG: ${{ steps.meta.outputs.TAG }}
-        run: |
-          echo "Pushing image: $IMAGE:$TAG"
-          docker push $IMAGE:$TAG
+          echo "✅ Image built successfully"
 
-      # 6. Tag y push de latest (opcional, aquí lo hacemos siempre que haya push)
-      - name: Tag and push latest
-        if: steps.meta.outputs.PUSH == 'true'
+      # 6. Push de todas las variantes del tag
+      - name: Push Docker images
+        env:
+          IMAGE: ${{ steps.meta.outputs.IMAGE }}
+          TAG: ${{ steps.meta.outputs.TAG }}
+          VERSION: ${{ steps.meta.outputs.VERSION }}
+        run: |
+          echo "📤 Pushing images to Docker Hub..."
+          docker push $IMAGE:$TAG
+          docker push $IMAGE:$VERSION
+          docker push $IMAGE:latest
+          echo "✅ All images pushed successfully"
+
+      # 7. Resumen
+      - name: Summary
         env:
           IMAGE: ${{ steps.meta.outputs.IMAGE }}
           TAG: ${{ steps.meta.outputs.TAG }}
         run: |
-          echo "Tagging $IMAGE:$TAG as $IMAGE:latest"
-          docker tag $IMAGE:$TAG $IMAGE:latest
-          docker push $IMAGE:latest
+          echo "## 🐳 Docker Image Published!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`$IMAGE\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags:**" >> $GITHUB_STEP_SUMMARY
+          echo "- \`$TAG\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ steps.meta.outputs.VERSION }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 Docker Hub" >> $GITHUB_STEP_SUMMARY
+          echo "[View on Docker Hub](https://hub.docker.com/r/$IMAGE)" >> $GITHUB_STEP_SUMMARY

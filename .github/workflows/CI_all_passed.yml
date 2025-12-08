@@ -19,12 +19,22 @@ on:
     branches:
       - main
 
+# Prevenir ejecuciones múltiples - solo la última se ejecutará
+concurrency:
+  group: all-tests-passed-${{ github.sha }}
+  cancel-in-progress: true
+
 jobs:
   check-all-passed:
     runs-on: ubuntu-24.04
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
+      - name: Esperar a que otros workflows terminen
+        run: |
+          echo "⏳ Esperando 30 segundos para que otros workflows terminen..."
+          sleep 30
+
       - name: Checkout
         uses: actions/checkout@v5
 

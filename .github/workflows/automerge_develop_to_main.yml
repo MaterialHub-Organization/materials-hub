@@ -1,0 +1,132 @@
+# ----------------------------------------------------------------------------
+# Automerge Workflow - Develop to Main
+# Automatically merges develop branch into main when all tests pass.
+# Requires a PAT with 'workflows' permission stored in secrets.AUTOMERGE_PAT
+# ----------------------------------------------------------------------------
+
+name: Automerge Develop to Main
+
+on:
+  push:
+    branches:
+      - develop
+
+# Prevenir merges múltiples simultáneos
+concurrency:
+  group: automerge-develop-to-main
+  cancel-in-progress: false
+
+jobs:
+  wait-for-tests:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Esperar a que los tests completen
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const workflows = [
+              'Tests Unitarios',
+              'Tests de Integración',
+              'Tests de Interfaz',
+              'Tests de Carga',
+              'Python Lint'
+            ];
+
+            const maxWaitMinutes = 30;
+            const pollIntervalSeconds = 30;
+            const maxAttempts = (maxWaitMinutes * 60) / pollIntervalSeconds;
+
+            console.log(`⏳ Esperando a que completen los workflows para commit ${context.sha}`);
+
+            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+              const { data: workflowRuns } = await github.rest.actions.listWorkflowRunsForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                event: 'push',
+                branch: 'develop',
+                per_page: 50
+              });
+
+              const runsForCommit = workflowRuns.workflow_runs.filter(
+                run => run.head_sha === context.sha
+              );
+
+              const workflowStatus = {};
+              let allCompleted = true;
+              let anyFailed = false;
+
+              for (const workflowName of workflows) {
+                const run = runsForCommit.find(r => r.name === workflowName);
+
+                if (!run || run.status !== 'completed') {
+                  allCompleted = false;
+                  workflowStatus[workflowName] = run ? run.status : 'not started';
+                } else if (run.conclusion !== 'success') {
+                  anyFailed = true;
+                  workflowStatus[workflowName] = run.conclusion;
+                } else {
+                  workflowStatus[workflowName] = 'success';
+                }
+              }
+
+              console.log(`\nIntento ${attempt}/${maxAttempts}:`);
+              console.log(workflowStatus);
+
+              if (anyFailed) {
+                console.log('\n❌ Uno o más workflows fallaron. Abortando automerge.');
+                core.setFailed('Tests fallaron');
+                return;
+              }
+
+              if (allCompleted) {
+                console.log('\n✅ Todos los workflows completaron exitosamente!');
+                return;
+              }
+
+              if (attempt < maxAttempts) {
+                console.log(`⏳ Esperando ${pollIntervalSeconds} segundos...`);
+                await new Promise(resolve => setTimeout(resolve, pollIntervalSeconds * 1000));
+              }
+            }
+
+            console.log('\n⏱️ Tiempo de espera agotado');
+            core.setFailed('Timeout esperando workflows');
+
+  automerge:
+    needs: wait-for-tests
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.AUTOMERGE_PAT }}
+
+      - name: Configurar Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Merge develop into main
+        run: |
+          echo "🔀 Mergeando develop en main..."
+          git merge origin/develop --no-ff -m "chore: automerge develop into main [skip ci]"
+          git push origin main
+          echo "✅ Merge completado!"
+
+      - name: Summary
+        run: |
+          echo "## 🔀 Automerge Completed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** develop → main" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Los workflows de CI/CD se ejecutarán en main automáticamente" >> $GITHUB_STEP_SUMMARY

@@ -3,7 +3,7 @@ name: Deploy to Render
 on:
   workflow_run:
     workflows:
-      - "All Tests Passed"
+      - "Auto Release"
     types:
       - completed
     branches:
@@ -17,11 +17,29 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Get release version
+        id: version
+        run: |
+          VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Desplegando versión: $VERSION"
 
       - name: Deploy a Render
         run: |
-          echo "✅ Todos los workflows de CI han pasado"
+          echo "✅ Release ${{ steps.version.outputs.version }} creado exitosamente"
           echo "🚀 Desplegando a Render..."
           curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
-          echo "✅ Deploy disparado exitosamente"
+          echo "✅ Deploy webhook enviado"
+
+      - name: Summary
+        run: |
+          echo "## 🚀 Deploy to Render" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Versión:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** Webhook enviado exitosamente" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "El deploy se completará en unos minutos en Render." >> $GITHUB_STEP_SUMMARY
 
