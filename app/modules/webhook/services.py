@@ -1,3 +1,4 @@
+import os
 import subprocess
 from datetime import datetime, timezone
 
@@ -7,7 +8,10 @@ import docker
 from app.modules.webhook.repositories import WebhookRepository
 from core.services.BaseService import BaseService
 
-client = docker.from_env()
+DISABLE_WEBHOOK = os.getenv("DISABLE_WEBHOOK", "false").lower() == "true"
+
+if not DISABLE_WEBHOOK:
+    client = docker.from_env()
 
 
 class WebhookService(BaseService):
@@ -15,12 +19,16 @@ class WebhookService(BaseService):
         super().__init__(WebhookRepository())
 
     def get_web_container(self):
+        if DISABLE_WEBHOOK:
+            return None
         try:
             return client.containers.get("web_app_container")
         except docker.errors.NotFound:
             abort(404, description="Web container not found.")
 
     def get_volume_name(self, container):
+        if DISABLE_WEBHOOK or container is None:
+            return None
         volume_name = next(
             (
                 mount.get("Name") or mount.get("Source")
@@ -36,6 +44,8 @@ class WebhookService(BaseService):
         return volume_name
 
     def execute_host_command(self, volume_name, command):
+        if DISABLE_WEBHOOK or volume_name is None:
+            return
         try:
             subprocess.run(
                 [
@@ -56,15 +66,21 @@ class WebhookService(BaseService):
             abort(500, description=f"Host command failed: {str(e)}")
 
     def execute_container_command(self, container, command, workdir="/app"):
+        if DISABLE_WEBHOOK or container is None:
+            return ""
         exit_code, output = container.exec_run(command, workdir=workdir)
         if exit_code != 0:
             abort(500, description=f"Container command failed: {output.decode('utf-8')}")
         return output.decode("utf-8")
 
     def log_deployment(self, container):
+        if DISABLE_WEBHOOK or container is None:
+            return
         log_entry = f"Deployment successful at {datetime.now(timezone.utc).isoformat()}\n"
         log_file_path = "/app/deployments.log"
         self.execute_container_command(container, f"sh -c 'echo \"{log_entry}\" >> {log_file_path}'")
 
     def restart_container(self, container):
+        if DISABLE_WEBHOOK or container is None:
+            return
         subprocess.Popen(["/bin/sh", "/app/scripts/restart_container.sh", container.id])
