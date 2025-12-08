@@ -10,11 +10,8 @@ services:
       pip install -r requirements.txt
       pip install -e .
 
-    startCommand: |
-      # Configurar la base de datos si está vacía
-      rosemary db:setup
-      # Arrancar la aplicación con Gunicorn
-      gunicorn app:app --bind 0.0.0.0:$PORT
+    preStartCommand: rosemary db:setup
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
 
     envVars:
       - key: FLASK_ENV
