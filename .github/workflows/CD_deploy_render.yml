@@ -3,13 +3,11 @@ name: Deploy to Render
 on:
   workflow_run:
     workflows:
-      - "Tests Unitarios"
-      - "Tests de Integración"
-      - "Tests de Interfaz"
-      - "Tests de Carga"
-      - "Python Lint"
+      - "All Tests Passed"
     types:
       - completed
+    branches:
+      - main
 
 jobs:
   deploy:
@@ -17,13 +15,13 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - name: Esperar a que todos los workflows hayan terminado
-        run: |
-          echo "Deploy ejecutándose solo si todos los workflows de tests y lint han pasado"
-
-      - uses: actions/checkout@v5
+      - name: Checkout
+        uses: actions/checkout@v5
 
       - name: Deploy a Render
         run: |
+          echo "✅ Todos los workflows de CI han pasado"
+          echo "🚀 Desplegando a Render..."
           curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
+          echo "✅ Deploy disparado exitosamente"
 

@@ -1,0 +1,90 @@
+# ----------------------------------------------------------------------------
+# Workflow Checkpoint - All Tests Passed
+# Este workflow solo se ejecuta cuando todos los workflows de CI han pasado.
+# Actúa como checkpoint antes del deploy a Render.
+# ----------------------------------------------------------------------------
+
+name: All Tests Passed
+
+on:
+  workflow_run:
+    workflows:
+      - "Tests Unitarios"
+      - "Tests de Integración"
+      - "Tests de Interfaz"
+      - "Tests de Carga"
+      - "Python Lint"
+    types:
+      - completed
+    branches:
+      - main
+
+jobs:
+  check-all-passed:
+    runs-on: ubuntu-24.04
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Verificar estado de todos los workflows
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const workflows = [
+              'Tests Unitarios',
+              'Tests de Integración',
+              'Tests de Interfaz',
+              'Tests de Carga',
+              'Python Lint'
+            ];
+
+            const { data: workflowRuns } = await github.rest.actions.listWorkflowRunsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              event: 'push',
+              branch: 'main',
+              per_page: 50
+            });
+
+            // Filtrar runs del mismo commit
+            const runsForCommit = workflowRuns.workflow_runs.filter(
+              run => run.head_sha === context.sha
+            );
+
+            console.log(`Verificando workflows para commit ${context.sha}`);
+
+            // Verificar que todos los workflows existan y hayan pasado
+            const workflowStatus = {};
+            for (const workflowName of workflows) {
+              const run = runsForCommit.find(r => r.name === workflowName);
+              if (!run) {
+                console.log(`⏳ Workflow '${workflowName}' aún no ha empezado`);
+                workflowStatus[workflowName] = 'pending';
+              } else if (run.status !== 'completed') {
+                console.log(`⏳ Workflow '${workflowName}' aún está ejecutándose`);
+                workflowStatus[workflowName] = 'running';
+              } else if (run.conclusion !== 'success') {
+                console.log(`❌ Workflow '${workflowName}' falló con: ${run.conclusion}`);
+                workflowStatus[workflowName] = run.conclusion;
+              } else {
+                console.log(`✅ Workflow '${workflowName}' pasó exitosamente`);
+                workflowStatus[workflowName] = 'success';
+              }
+            }
+
+            // Verificar si todos pasaron
+            const allPassed = Object.values(workflowStatus).every(status => status === 'success');
+
+            if (!allPassed) {
+              console.log('\n❌ No todos los workflows han pasado aún');
+              console.log('Estado actual:', workflowStatus);
+              core.setFailed('Esperando a que todos los workflows pasen');
+            } else {
+              console.log('\n✅ ¡Todos los workflows han pasado!');
+              console.log('Procediendo con el deploy...');
+            }
+
+      - name: Todos los checks pasaron
+        run: echo "✅ Todos los workflows de CI/CD han pasado exitosamente"
