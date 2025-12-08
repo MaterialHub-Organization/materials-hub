@@ -4,28 +4,35 @@ services:
     env: python
     plan: free
     branch: main
+
     buildCommand: |
       python -m pip install --upgrade pip
       pip install -r requirements.txt
       pip install -e .
-    startCommand: flask run --host=0.0.0.0 --port=$PORT
+
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+
     envVars:
       - key: FLASK_ENV
-        value: development
+        value: production
+
       - key: FLASK_APP_NAME
         value: MaterialsHub
+
       - key: DOMAIN
-        value: localhost
+        value: materialhub-web.onrender.com
+
       - key: SECRET_KEY
-        value: test-secret-key-for-ci
-    services:
-      - type: postgres
-        name: materialhub-db
-        plan: free
-        envVars:
-          - key: POSTGRES_USER
-            value: materialhub_user
-          - key: POSTGRES_PASSWORD
-            value: materialhub_password
-          - key: POSTGRES_DB
-            value: materialhub_test
+        sync: false
+
+      - key: DATABASE_URL
+        fromDatabase:
+          name: materialhub-db
+          property: connectionString
+
+databases:
+  - name: materialhub-db
+    plan: free
+    databaseName: materialhub
+    user: materialhub_user
+    password: materialhub_password
