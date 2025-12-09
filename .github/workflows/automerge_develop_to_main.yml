@@ -105,12 +105,16 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - name: Checkout
+      - name: Checkout main
         uses: actions/checkout@v5
         with:
           ref: main
           fetch-depth: 0
-          token: ${{ secrets.AUTOMERGE_PAT }}
+          token: ${{ secrets.AUTOMERGE_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Fetch develop
+        run: |
+          git fetch origin develop:develop
 
       - name: Configurar Git
         run: |
@@ -120,9 +124,10 @@ jobs:
       - name: Merge develop into main
         run: |
           echo "🔀 Mergeando develop en main..."
-          git merge origin/develop --no-ff -m "chore: automerge develop into main [skip ci]"
+          git merge develop --no-ff -m "Merge develop into main"
           git push origin main
           echo "✅ Merge completado!"
+          echo "📋 Este push disparará todos los workflows en main automáticamente"
 
       - name: Summary
         run: |

@@ -52,6 +52,12 @@ jobs:
               continue
             fi
 
+            # Ignorar merge commits automáticos
+            if echo "$message" | grep -Eq "^Merge (branch|develop into main)"; then
+              echo "⏭️  \`${hash:0:7}\` - $message (merge commit)" >> $GITHUB_STEP_SUMMARY
+              continue
+            fi
+
             # Ignorar commits con emojis al inicio (commits antiguos ya validados)
             if echo "$message" | grep -Eq "^[[:space:]]*(✨|🐛|📝|🔧|♻️|🎨|⚡|🔥|✅|🚀)"; then
               echo "⏭️  \`${hash:0:7}\` - $message (legacy commit)" >> $GITHUB_STEP_SUMMARY
