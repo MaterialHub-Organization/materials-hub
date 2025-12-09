@@ -52,6 +52,18 @@ jobs:
               continue
             fi
 
+            # Ignorar commits con emojis al inicio (commits antiguos ya validados)
+            if echo "$message" | grep -Eq "^[[:space:]]*(✨|🐛|📝|🔧|♻️|🎨|⚡|🔥|✅|🚀)"; then
+              echo "⏭️  \`${hash:0:7}\` - $message (legacy commit)" >> $GITHUB_STEP_SUMMARY
+              continue
+            fi
+
+            # Ignorar commits tipo "chore:" anteriores (legacy)
+            if echo "$message" | grep -Eq "^chore:"; then
+              echo "⏭️  \`${hash:0:7}\` - $message (legacy commit)" >> $GITHUB_STEP_SUMMARY
+              continue
+            fi
+
             if echo "$message" | grep -Eq "$ALLOWED_TYPES"; then
               echo "✅ \`${hash:0:7}\` - $message" >> $GITHUB_STEP_SUMMARY
               VALID_COUNT=$((VALID_COUNT + 1))

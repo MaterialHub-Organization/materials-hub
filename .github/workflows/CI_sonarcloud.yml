@@ -1,7 +1,8 @@
 # ----------------------------------------------------------------------------
 # SonarCloud Analysis Workflow
 # This workflow performs static code analysis and tracks code quality metrics.
-# Runs on develop and main branches for informational purposes (non-blocking).
+# Runs only on main branch for informational purposes (non-blocking).
+# Note: Free tier only supports analyzing the main branch.
 # ----------------------------------------------------------------------------
 
 name: SonarCloud Analysis
@@ -9,10 +10,7 @@ name: SonarCloud Analysis
 on:
   push:
     branches:
-      - develop
       - main
-  pull_request:
-    types: [opened, synchronize, reopened]
 
 jobs:
   sonarcloud:
@@ -61,8 +59,11 @@ jobs:
             -Dsonar.python.version=3.12
             -Dsonar.exclusions=**/migrations/**,**/tests/**,**/static/**,**/templates/**,**/__pycache__/**,**/venv/**,**/htmlcov/**
             -Dsonar.coverage.exclusions=**/tests/**,**/test_*.py,**/conftest.py,**/migrations/**,**/seeders.py,rosemary/commands/**
+            -Dsonar.qualitygate.wait=false
+        continue-on-error: true
 
       - name: Check Quality Gate Status
+        if: always()
         run: |
           echo "## 🔍 SonarCloud Analysis Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
