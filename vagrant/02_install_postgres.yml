@@ -1,0 +1,58 @@
+---
+- hosts: all
+  become: true
+
+  tasks:
+    - name: Install PostgreSQL server and tools
+      apt:
+        name:
+          - postgresql
+          - postgresql-contrib
+          - libpq-dev
+          - python3-psycopg2
+        state: present
+        update_cache: yes
+
+    - name: Ensure PostgreSQL service is enabled and running
+      service:
+        name: postgresql
+        state: started
+        enabled: yes
+
+    - name: Create SQL script to initialise PostgreSQL databases and user
+      copy:
+        dest: /tmp/setup_postgres.sql
+        content: |
+          DO $$
+          BEGIN
+            IF NOT EXISTS (
+              SELECT FROM pg_database WHERE datname = '{{ postgres_database }}'
+            ) THEN
+              EXECUTE 'CREATE DATABASE {{ postgres_database }}';
+            END IF;
+            IF NOT EXISTS (
+              SELECT FROM pg_database WHERE datname = '{{ postgres_test_database }}'
+            ) THEN
+              EXECUTE 'CREATE DATABASE {{ postgres_test_database }}';
+            END IF;
+          END
+          $$;
+
+          DO $$
+          BEGIN
+            IF NOT EXISTS (
+              SELECT FROM pg_catalog.pg_roles WHERE rolname = '{{ postgres_user }}'
+            ) THEN
+              EXECUTE 'CREATE ROLE {{ postgres_user }} LOGIN PASSWORD ''{{ postgres_password }}''';
+            END IF;
+          END
+          $$;
+
+          GRANT ALL PRIVILEGES ON DATABASE {{ postgres_database }} TO {{ postgres_user }};
+          GRANT ALL PRIVILEGES ON DATABASE {{ postgres_test_database }} TO {{ postgres_user }};
+
+    - name: Run PostgreSQL initialisation script
+      become_user: postgres
+      shell: psql -f /tmp/setup_postgres.sql
+      args:
+        warn: false

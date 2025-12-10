@@ -1,0 +1,32 @@
+---
+- hosts: all
+  become: true
+
+  vars:
+    common_environment:
+      POSTGRES_HOSTNAME: "{{ postgres_hostname }}"
+      POSTGRES_PORT: "{{ postgres_port }}"
+      POSTGRES_DATABASE: "{{ postgres_database }}"
+      POSTGRES_TEST_DATABASE: "{{ postgres_test_database }}"
+      POSTGRES_USER: "{{ postgres_user }}"
+      POSTGRES_PASSWORD: "{{ postgres_password }}"
+
+  tasks:
+    - name: Wait for PostgreSQL to be ready (script)
+      shell: |
+        chmod +x /vagrant/scripts/wait-for-db.sh
+        /vagrant/scripts/wait-for-db.sh
+      args:
+        chdir: /vagrant
+      environment: "{{ common_environment }}"
+
+    - name: Run test DB init script (if exists)
+      shell: |
+        if [ -x /vagrant/scripts/init-testing-db.sh ]; then
+          /vagrant/scripts/init-testing-db.sh
+        else
+          echo "scripts/init-testing-db.sh not found or not executable, skipping"
+        fi
+      args:
+        chdir: /vagrant
+      environment: "{{ common_environment }}"
