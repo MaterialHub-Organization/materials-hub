@@ -1062,7 +1062,10 @@ def edit_materials_dataset(dataset_id):
                 metadata_changed = True
                 changes_made.append("tags")
 
-            logger.info(f"Metadata changed: {metadata_changed}, Records changed: {records_changed}, Changes: {changes_made}")
+            logger.info(
+                f"Metadata changed: {metadata_changed}, Records changed: {records_changed}, "
+                f"Changes: {changes_made}"
+            )
 
             # Process record deletions
             records_to_delete = request.form.get('records_to_delete', '[]')
