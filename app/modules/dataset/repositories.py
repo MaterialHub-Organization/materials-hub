@@ -7,6 +7,7 @@ from sqlalchemy import and_, desc, func
 
 from app.modules.dataset.models import (
     Author,
+    DatasetVersion,
     DOIMapping,
     DSDownloadRecord,
     DSMetaData,
@@ -244,3 +245,39 @@ class MaterialRecordRepository(BaseRepository):
     def count_by_dataset(self, dataset_id: int) -> int:
         """Count records in a dataset"""
         return self.model.query.filter_by(materials_dataset_id=dataset_id).count()
+
+
+class DatasetVersionRepository(BaseRepository):
+    def __init__(self):
+        super().__init__(DatasetVersion)
+
+    def get_by_dataset(self, dataset_id: int):
+        """Get all versions for a dataset, ordered by version_number DESC"""
+        return (
+            self.model.query.filter_by(materials_dataset_id=dataset_id)
+            .order_by(desc(self.model.version_number))
+            .all()
+        )
+
+    def get_latest_version(self, dataset_id: int) -> Optional[DatasetVersion]:
+        """Get the latest version for a dataset"""
+        return (
+            self.model.query.filter_by(materials_dataset_id=dataset_id)
+            .order_by(desc(self.model.version_number))
+            .first()
+        )
+
+    def get_next_version_number(self, dataset_id: int) -> int:
+        """Get the next version number for a dataset"""
+        latest = self.get_latest_version(dataset_id)
+        return (latest.version_number + 1) if latest else 1
+
+    def count_for_dataset(self, dataset_id: int) -> int:
+        """Count versions for a dataset"""
+        return self.model.query.filter_by(materials_dataset_id=dataset_id).count()
+
+    def get_version_by_number(self, dataset_id: int, version_number: int) -> Optional[DatasetVersion]:
+        """Get a specific version by dataset_id and version_number"""
+        return self.model.query.filter_by(
+            materials_dataset_id=dataset_id, version_number=version_number
+        ).first()

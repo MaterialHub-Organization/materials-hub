@@ -6,7 +6,7 @@ async function loadRecommendations(page = 1, filterType = null) {
     const params = new URLSearchParams({ page });
     if (filterType) params.append("filter_type", filterType);
 
-    const response = await fetch(`/dataset/${datasetId}/recommendations?${params.toString()}`);
+    const response = await fetch(`/materials/${datasetId}/recommendations?${params.toString()}`);
     const data = await response.json();
 
     document.querySelector("#recommendations-container").innerHTML = data.html;

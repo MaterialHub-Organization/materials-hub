@@ -44,6 +44,9 @@
                                     <a href="{{ url_for('dataset.materials_dataset_statistics', dataset_id=dataset.id) }}" title="View statistics">
                                         <i data-feather="bar-chart-2"></i>
                                     </a>
+                                    <a href="{{ url_for('dataset.edit_materials_dataset', dataset_id=dataset.id) }}" title="Edit metadata" class="text-primary">
+                                        <i data-feather="edit-2"></i>
+                                    </a>
                                     {% if dataset.csv_file_path %}
                                     <a href="{{ url_for('dataset.download_dataset', dataset_id=dataset.id) }}" title="Download CSV">
                                         <i data-feather="download"></i>

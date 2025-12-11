@@ -204,8 +204,15 @@
             <div class="card-body">
                 <div class="d-flex align-items-center justify-content-between">
                     <h1><b>{{ dataset.ds_meta_data.title }}</b></h1>
-                    <div>
+                    <div class="d-flex gap-2 align-items-center">
                         <span class="badge bg-primary">Materials Dataset</span>
+                        {% if current_user.is_authenticated and current_user.id == dataset.user_id %}
+                        <a href="{{ url_for('dataset.edit_materials_dataset', dataset_id=dataset.id) }}"
+                           class="btn btn-sm btn-outline-primary"
+                           title="Edit dataset metadata">
+                            <i data-feather="edit-2"></i> Edit
+                        </a>
+                        {% endif %}
                     </div>
                 </div>
                 <p class="text-secondary">{{ dataset.created_at.strftime('%B %d, %Y at %I:%M %p') }}</p>
@@ -422,6 +429,17 @@
 
         <div class="list-group">
 
+            <!-- Version History Button -->
+            <div class="list-group-item">
+                <div class="row">
+                    <div class="col-12">
+                        <a href="{{ url_for('dataset.list_versions', dataset_id=dataset.id) }}" class="btn btn-outline-primary btn-sm w-100" style="border-radius: 5px;">
+                            <i data-feather="clock"></i> Version History
+                        </a>
+                    </div>
+                </div>
+            </div>
+
             <div class="list-group-item">
                 <div class="row">
                     <div class="col-12 d-flex justify-content-between align-items-center">
@@ -456,14 +474,7 @@
                 <div class="row">
                     <div class="col-12 d-flex justify-content-between align-items-center">
                         <h4 style="margin-bottom: 0px">Material Records</h4>
-                        <div class="d-flex align-items-center gap-2">
-                            <h4 style="margin-bottom: 0px;"><span class="badge bg-dark" id="recordCount">{{ total }}</span></h4>
-                            {% if current_user.is_authenticated and current_user.id == dataset.user_id %}
-                            <a href="{{ url_for('dataset.add_material_record', dataset_id=dataset.id) }}" class="btn btn-sm btn-success" title="Add new record">
-                                <i data-feather="plus"></i> Add
-                            </a>
-                            {% endif %}
-                        </div>
+                        <h4 style="margin-bottom: 0px;"><span class="badge bg-dark" id="recordCount">{{ total }}</span></h4>
                     </div>
                 </div>
             </div>
@@ -484,25 +495,13 @@
                     <div class="list-group-item material-record-item" data-material-name="{{ record.material_name|lower }}">
                         <div class="row">
                             <div class="col-12">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div class="mb-2">
                                     <div>
                                         <strong>{{ record.material_name }}</strong>
                                         {% if record.chemical_formula %}
                                         <span class="text-muted">({{ record.chemical_formula }})</span>
                                         {% endif %}
                                     </div>
-                                    {% if current_user.is_authenticated and current_user.id == dataset.user_id %}
-                                    <div class="btn-group btn-group-sm" role="group">
-                                        <a href="{{ url_for('dataset.edit_material_record', dataset_id=dataset.id, record_id=record.id) }}"
-                                           class="btn btn-outline-primary btn-sm" title="Edit record">
-                                            <i data-feather="edit-2" style="width: 14px; height: 14px;"></i>
-                                        </a>
-                                        <button type="button" onclick="deleteRecord({{ dataset.id }}, {{ record.id }})"
-                                           class="btn btn-outline-danger btn-sm" title="Delete record">
-                                            <i data-feather="trash-2" style="width: 14px; height: 14px;"></i>
-                                        </button>
-                                    </div>
-                                    {% endif %}
                                 </div>
 
                                 <div class="row">
@@ -567,15 +566,38 @@
                     <a class="page-link" href="{{ url_for('dataset.view_materials_dataset', dataset_id=dataset.id, page=page-1, per_page=per_page) }}">Previous</a>
                 </li>
 
-                {% for p in range(1, total_pages + 1) %}
-                    {% if p == page %}
-                        <li class="page-item active"><a class="page-link" href="#">{{ p }}</a></li>
-                    {% elif p == 1 or p == total_pages or (p >= page - 2 and p <= page + 2) %}
-                        <li class="page-item"><a class="page-link" href="{{ url_for('dataset.view_materials_dataset', dataset_id=dataset.id, page=p, per_page=per_page) }}">{{ p }}</a></li>
-                    {% elif p == page - 3 or p == page + 3 %}
-                        <li class="page-item disabled"><a class="page-link" href="#">...</a></li>
+                {# Show first page #}
+                {% if page > 3 %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('dataset.view_materials_dataset', dataset_id=dataset.id, page=1, per_page=per_page) }}">1</a>
+                    </li>
+                    {% if page > 4 %}
+                        <li class="page-item disabled">
+                            <span class="page-link">...</span>
+                        </li>
                     {% endif %}
+                {% endif %}
+
+                {# Show pages around current page #}
+                {% for p in range([1, page - 2]|max, [total_pages + 1, page + 3]|min) %}
+                    <li class="page-item {% if p == page %}active{% endif %}">
+                        <a class="page-link" href="{% if p == page %}#{% else %}{{ url_for('dataset.view_materials_dataset', dataset_id=dataset.id, page=p, per_page=per_page) }}{% endif %}">
+                            {{ p }}
+                        </a>
+                    </li>
                 {% endfor %}
+
+                {# Show last page #}
+                {% if page < total_pages - 2 %}
+                    {% if page < total_pages - 3 %}
+                        <li class="page-item disabled">
+                            <span class="page-link">...</span>
+                        </li>
+                    {% endif %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('dataset.view_materials_dataset', dataset_id=dataset.id, page=total_pages, per_page=per_page) }}">{{ total_pages }}</a>
+                    </li>
+                {% endif %}
 
                 <li class="page-item {% if page == total_pages %}disabled{% endif %}">
                     <a class="page-link" href="{{ url_for('dataset.view_materials_dataset', dataset_id=dataset.id, page=page+1, per_page=per_page) }}">Next</a>
@@ -730,17 +752,75 @@
 
         paginationContainer.innerHTML = "";
 
-        for (let p = 1; p <= total; p++) {
+        // Previous button
+        const prevLi = document.createElement("li");
+        prevLi.className = `page-item ${page === 1 ? "disabled" : ""}`;
+        prevLi.innerHTML = `<a class="page-link" href="#">Previous</a>`;
+        if (page > 1) {
+            prevLi.addEventListener("click", e => {
+                e.preventDefault();
+                currentPage = page - 1;
+                loadRecommendations(datasetId, currentPage, currentFilter);
+            });
+        }
+        paginationContainer.appendChild(prevLi);
+
+        // Helper function to create page item
+        function createPageItem(p, isActive = false) {
             const li = document.createElement("li");
-            li.className = `page-item ${p === page ? "active" : ""}`;
+            li.className = `page-item ${isActive ? "active" : ""}`;
             li.innerHTML = `<a class="page-link" href="#">${p}</a>`;
             li.addEventListener("click", e => {
                 e.preventDefault();
                 currentPage = p;
                 loadRecommendations(datasetId, currentPage, currentFilter);
             });
-            paginationContainer.appendChild(li);
+            return li;
         }
+
+        // Helper function to create ellipsis
+        function createEllipsis() {
+            const li = document.createElement("li");
+            li.className = "page-item disabled";
+            li.innerHTML = `<span class="page-link">...</span>`;
+            return li;
+        }
+
+        // Show first page
+        if (page > 3) {
+            paginationContainer.appendChild(createPageItem(1));
+            if (page > 4) {
+                paginationContainer.appendChild(createEllipsis());
+            }
+        }
+
+        // Show pages around current page
+        const start = Math.max(1, page - 2);
+        const end = Math.min(total, page + 2);
+        for (let p = start; p <= end; p++) {
+            paginationContainer.appendChild(createPageItem(p, p === page));
+        }
+
+        // Show last page
+        if (page < total - 2) {
+            if (page < total - 3) {
+                paginationContainer.appendChild(createEllipsis());
+            }
+            paginationContainer.appendChild(createPageItem(total));
+        }
+
+        // Next button
+        const nextLi = document.createElement("li");
+        nextLi.className = `page-item ${page === total ? "disabled" : ""}`;
+        nextLi.innerHTML = `<a class="page-link" href="#">Next</a>`;
+        if (page < total) {
+            nextLi.addEventListener("click", e => {
+                e.preventDefault();
+                currentPage = page + 1;
+                loadRecommendations(datasetId, currentPage, currentFilter);
+            });
+        }
+        paginationContainer.appendChild(nextLi);
     }
 
     /**
@@ -822,6 +902,7 @@
         const searchInput = document.getElementById('materialSearchInput');
         const filter = searchInput.value.toLowerCase().trim();
         const records = document.querySelectorAll('.material-record-item');
+        const paginationNav = document.querySelector('nav[aria-label="Page navigation"]');
         let visibleCount = 0;
 
         records.forEach(record => {
@@ -834,12 +915,21 @@
             }
         });
 
+        // Hide/show pagination based on filter
+        if (filter && paginationNav) {
+            paginationNav.style.display = 'none';
+        } else if (paginationNav) {
+            paginationNav.style.display = '';
+        }
+
         // Update result count
         const resultCountElement = document.getElementById('searchResultCount');
         if (filter) {
-            resultCountElement.textContent = `Showing ${visibleCount} of {{ total }} records`;
+            resultCountElement.textContent = `Showing ${visibleCount} matching records (filtered from current page only)`;
+            resultCountElement.classList.add('text-warning');
         } else {
             resultCountElement.textContent = '';
+            resultCountElement.classList.remove('text-warning');
         }
 
         // Replace feather icons after filtering
@@ -854,31 +944,6 @@
     function clearSearch() {
         document.getElementById('materialSearchInput').value = '';
         filterMaterials();
-    }
-
-    /**
-     * Delete a material record with confirmation
-     */
-    function deleteRecord(datasetId, recordId) {
-        if (confirm('Are you sure you want to delete this record? This action cannot be undone.')) {
-            // Create a form and submit it
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = `/materials/${datasetId}/records/${recordId}/delete`;
-
-            // Add CSRF token - get it from hidden form
-            const csrfInput = document.querySelector('#csrf-form input[name="csrf_token"]');
-            if (csrfInput && csrfInput.value) {
-                const newCsrfInput = document.createElement('input');
-                newCsrfInput.type = 'hidden';
-                newCsrfInput.name = 'csrf_token';
-                newCsrfInput.value = csrfInput.value;
-                form.appendChild(newCsrfInput);
-            }
-
-            document.body.appendChild(form);
-            form.submit();
-        }
     }
 </script>
 

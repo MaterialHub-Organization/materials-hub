@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Saving temporary record...</title>
+</head>
+<body>
+    <div style="text-align: center; padding: 50px;">
+        <p>Saving temporary record...</p>
+        <div class="spinner-border" role="status">
+            <span class="sr-only">Loading...</span>
+        </div>
+    </div>
+
+    <script>
+        // Save temporary record to sessionStorage
+        const tempRecord = {{ temp_record|safe }};
+        const datasetId = {{ dataset.id }};
+
+        // Get existing temporary records
+        const storageKey = `tempRecords_${datasetId}`;
+        let tempRecords = [];
+
+        try {
+            const existing = sessionStorage.getItem(storageKey);
+            if (existing) {
+                tempRecords = JSON.parse(existing);
+            }
+        } catch (e) {
+            console.error('Error loading temporary records:', e);
+        }
+
+        // Add new temporary record
+        tempRecords.push(tempRecord);
+
+        // Save back to sessionStorage
+        sessionStorage.setItem(storageKey, JSON.stringify(tempRecords));
+
+        // Redirect to edit view
+        window.location.href = "{{ url_for('dataset.edit_materials_dataset', dataset_id=dataset.id) }}";
+    </script>
+</body>
+</html>

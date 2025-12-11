@@ -84,19 +84,49 @@
                     <ul class="pagination">
                         <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
                             <a class="page-link" href="{% if pagination.has_prev %}{{ url_for('profile.my_profile', page=pagination.prev_num) }}{% else %}# {% endif %}" aria-label="Previous">
-                                &laquo;
+                                Previous
                             </a>
                         </li>
-                        {% for num in pagination.iter_pages() %}
-                        <li class="page-item {% if num == pagination.page %}active{% endif %}">
-                            <a class="page-link" href="{{ url_for('profile.my_profile', page=num) }}">
-                                {{ num }}
-                            </a>
-                        </li>
+
+                        {% set current_page = pagination.page %}
+                        {% set total_pages = pagination.pages %}
+
+                        {# Show first page #}
+                        {% if current_page > 3 %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('profile.my_profile', page=1) }}">1</a>
+                            </li>
+                            {% if current_page > 4 %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            {% endif %}
+                        {% endif %}
+
+                        {# Show pages around current page #}
+                        {% for num in range([1, current_page - 2]|max, [total_pages + 1, current_page + 3]|min) %}
+                            <li class="page-item {% if num == current_page %}active{% endif %}">
+                                <a class="page-link" href="{{ url_for('profile.my_profile', page=num) }}">
+                                    {{ num }}
+                                </a>
+                            </li>
                         {% endfor %}
+
+                        {# Show last page #}
+                        {% if current_page < total_pages - 2 %}
+                            {% if current_page < total_pages - 3 %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                            {% endif %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('profile.my_profile', page=total_pages) }}">{{ total_pages }}</a>
+                            </li>
+                        {% endif %}
+
                         <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
                             <a class="page-link" href="{% if pagination.has_next %}{{ url_for('profile.my_profile', page=pagination.next_num) }}{% else %}# {% endif %}" aria-label="Next">
-                                &raquo;
+                                Next
                             </a>
                         </li>
                     </ul>

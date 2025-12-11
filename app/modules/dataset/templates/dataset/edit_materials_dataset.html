@@ -1,0 +1,667 @@
+{% extends "base_template.html" %}
+
+{% block title %}Edit Dataset - {{ dataset.ds_meta_data.title }}{% endblock %}
+
+{% block content %}
+
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h1 class="h3 mb-0">Edit Dataset</h1>
+            <a href="{{ url_for('dataset.view_materials_dataset', dataset_id=dataset.id) }}" class="btn btn-secondary">
+                <i data-feather="arrow-left"></i> Back to Dataset
+            </a>
+        </div>
+
+        <div class="alert alert-info mb-4">
+            <i data-feather="info"></i>
+            <strong>Note:</strong> All changes (metadata and records) will be saved together and create a single new version.
+        </div>
+    </div>
+</div>
+
+<form method="POST" action="{{ url_for('dataset.edit_materials_dataset', dataset_id=dataset.id) }}" id="editDatasetForm">
+    {{ form.hidden_tag() }}
+
+    <!-- Hidden fields for record changes -->
+    <input type="hidden" name="records_to_delete" id="recordsToDelete" value="">
+    <input type="hidden" name="records_to_edit" id="recordsToEdit" value="">
+    <input type="hidden" name="records_to_add" id="recordsToAdd" value="">
+
+    <div class="row">
+        <!-- Left column: Metadata -->
+        <div class="col-xl-8 col-lg-12 col-md-12 col-sm-12">
+            <div class="card">
+                <div class="card-body">
+
+                    <h5 class="mb-3">Basic Information</h5>
+
+                    <div class="mb-3">
+                        {{ form.title.label(class="form-label") }} <span class="text-danger">*</span>
+                        {{ form.title(class="form-control") }}
+                        {% for error in form.title.errors %}
+                            <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.desc.label(class="form-label") }} <span class="text-danger">*</span>
+                        {{ form.desc(rows=4, class="form-control") }}
+                        {% for error in form.desc.errors %}
+                            <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            {{ form.publication_type.label(class="form-label") }}
+                            {{ form.publication_type(class="form-control") }}
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            {{ form.publication_doi.label(class="form-label") }}
+                            {{ form.publication_doi(class="form-control") }}
+                            {% for error in form.publication_doi.errors %}
+                                <div class="text-danger">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.tags.label(class="form-label") }}
+                        {{ form.tags(class="form-control", placeholder="e.g., materials, conductivity, silicon") }}
+                        <small class="form-text text-muted">Separate tags with commas</small>
+                        {% for error in form.tags.errors %}
+                            <div class="text-danger">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <hr class="my-4">
+
+                    <h5 class="mb-3">Authors</h5>
+
+                    <div class="alert alert-info">
+                        <i data-feather="info"></i>
+                        <small>Current authors:
+                            {% for author in dataset.ds_meta_data.authors %}
+                                {{ author.name }}{% if not loop.last %}, {% endif %}
+                            {% endfor %}
+                        </small>
+                        <br>
+                        <small class="text-muted">Note: Author editing will be available in a future update. For now, authors remain unchanged.</small>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="card mt-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('dataset.view_materials_dataset', dataset_id=dataset.id) }}" class="btn btn-secondary">
+                            <i data-feather="x"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i data-feather="save"></i> Save All Changes
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right column: Records -->
+        <div class="col-xl-4 col-lg-12 col-md-12 col-sm-12">
+            <div class="list-group">
+                <div class="list-group-item">
+                    <div class="row">
+                        <div class="col-12 d-flex justify-content-between align-items-center">
+                            <h4 style="margin-bottom: 0px">Material Records</h4>
+                            <div class="d-flex align-items-center gap-2">
+                                <h4 style="margin-bottom: 0px;"><span class="badge bg-dark" id="recordCount">{{ total_records }}</span></h4>
+                                <a href="{{ url_for('dataset.add_material_record', dataset_id=dataset.id, return_to='edit') }}" class="btn btn-sm btn-success" title="Add new record">
+                                    <i data-feather="plus"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="list-group-item">
+                    <div class="input-group">
+                        <span class="input-group-text"><i data-feather="search"></i></span>
+                        <input type="text" class="form-control" id="materialSearchInput" placeholder="Search by material name..." onkeyup="filterMaterials()">
+                        <button class="btn btn-outline-secondary" type="button" onclick="clearSearch()">
+                            <i data-feather="x"></i>
+                        </button>
+                    </div>
+                    <small class="text-muted mt-1 d-block" id="searchResultCount"></small>
+                </div>
+
+                {% if records %}
+                    {% for record in records %}
+                        <div class="list-group-item material-record-item" data-record-id="{{ record.id }}" data-material-name="{{ record.material_name|lower }}" id="record-{{ record.id }}">
+                            <div class="row">
+                                <div class="col-12">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <div>
+                                            <strong>{{ record.material_name }}</strong>
+                                            {% if record.chemical_formula %}
+                                            <span class="text-muted">({{ record.chemical_formula }})</span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <a href="{{ url_for('dataset.edit_material_record', dataset_id=dataset.id, record_id=record.id, return_to='edit') }}"
+                                               class="btn btn-outline-primary btn-sm edit-record-btn" title="Edit record" data-record-id="{{ record.id }}">
+                                                <i data-feather="edit-2" style="width: 14px; height: 14px;"></i>
+                                            </a>
+                                            <button type="button" onclick="markForDeletion({{ record.id }})"
+                                                   class="btn btn-outline-danger btn-sm delete-record-btn" title="Mark for deletion">
+                                                <i data-feather="trash-2" style="width: 14px; height: 14px;"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-12">
+                                            <small class="text-muted">
+                                                <strong>{{ record.property_name }}:</strong> {{ record.property_value }}
+                                                {% if record.property_unit %}{{ record.property_unit }}{% endif %}
+                                            </small>
+                                        </div>
+                                    </div>
+
+                                    {% if record.structure_type %}
+                                    <div class="row">
+                                        <div class="col-12">
+                                            <small class="text-muted">Structure: {{ record.structure_type }}</small>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
+                                    {% if record.data_source %}
+                                    <div class="row mt-1">
+                                        <div class="col-12">
+                                            <span class="badge bg-info">{{ record.data_source.value }}</span>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="list-group-item">
+                        <div class="alert alert-info mb-0" role="alert">
+                            <small>No material records found in this dataset.</small>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Pagination for records -->
+            <div class="list-group-item" id="recordsPagination">
+                <nav>
+                    <ul class="pagination pagination-sm mb-0 justify-content-center" id="paginationControls">
+                        <!-- Pagination will be inserted here by JavaScript -->
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</form>
+
+<script>
+// Pagination variables
+const RECORDS_PER_PAGE = 10;
+let currentPage = 1;
+let allRecords = [];
+
+// Track records marked for deletion
+let recordsToDelete = new Set();
+// Track records that were edited
+let recordsEdited = new Set();
+// Track temporary records (not yet saved to database)
+let tempRecords = [];
+
+// Load previously marked deletions from sessionStorage (persists across page reloads)
+const savedDeletions = sessionStorage.getItem('recordsToDelete_{{ dataset.id }}');
+if (savedDeletions) {
+    try {
+        const parsed = JSON.parse(savedDeletions);
+        recordsToDelete = new Set(parsed);
+        // Apply visual indicators to previously marked records
+        recordsToDelete.forEach(recordId => {
+            const recordElement = document.getElementById(`record-${recordId}`);
+            if (recordElement) {
+                const deleteBtn = recordElement.querySelector('.delete-record-btn');
+                recordElement.classList.add('bg-danger', 'bg-opacity-10');
+                deleteBtn.classList.remove('btn-outline-danger');
+                deleteBtn.classList.add('btn-danger');
+                deleteBtn.innerHTML = '<i data-feather="x" style="width: 14px; height: 14px;"></i> Undo';
+            }
+        });
+    } catch (e) {
+        console.error('Error loading saved deletions:', e);
+    }
+}
+
+// Load previously edited records from sessionStorage
+const savedEdits = sessionStorage.getItem('recordsEdited_{{ dataset.id }}');
+if (savedEdits) {
+    try {
+        const parsed = JSON.parse(savedEdits);
+        recordsEdited = new Set(parsed);
+        // Apply visual indicators to edited records
+        recordsEdited.forEach(recordId => {
+            const recordElement = document.getElementById(`record-${recordId}`);
+            if (recordElement && !recordsToDelete.has(recordId)) {
+                recordElement.classList.add('bg-warning', 'bg-opacity-10');
+            }
+        });
+    } catch (e) {
+        console.error('Error loading saved edits:', e);
+    }
+}
+
+// Load temporary records from sessionStorage
+const savedTempRecords = sessionStorage.getItem('tempRecords_{{ dataset.id }}');
+if (savedTempRecords) {
+    try {
+        tempRecords = JSON.parse(savedTempRecords);
+        console.log('Loaded temporary records:', tempRecords);
+    } catch (e) {
+        console.error('Error loading temporary records:', e);
+        tempRecords = [];
+    }
+}
+
+/**
+ * Mark/unmark a record for deletion
+ */
+function markForDeletion(recordId) {
+    const recordElement = document.getElementById(`record-${recordId}`);
+    const deleteBtn = recordElement.querySelector('.delete-record-btn');
+
+    if (recordsToDelete.has(recordId)) {
+        // Unmark for deletion
+        recordsToDelete.delete(recordId);
+        recordElement.classList.remove('bg-danger', 'bg-opacity-10');
+        deleteBtn.classList.remove('btn-danger');
+        deleteBtn.classList.add('btn-outline-danger');
+        deleteBtn.innerHTML = '<i data-feather="trash-2" style="width: 14px; height: 14px;"></i>';
+
+        // Restore yellow highlight if it was edited
+        if (recordsEdited.has(recordId)) {
+            recordElement.classList.add('bg-warning', 'bg-opacity-10');
+        }
+    } else {
+        // Mark for deletion (overrides edit status)
+        recordsToDelete.add(recordId);
+        recordElement.classList.remove('bg-warning', 'bg-opacity-10'); // Remove yellow
+        recordElement.classList.add('bg-danger', 'bg-opacity-10');
+        deleteBtn.classList.remove('btn-outline-danger');
+        deleteBtn.classList.add('btn-danger');
+        deleteBtn.innerHTML = '<i data-feather="x" style="width: 14px; height: 14px;"></i> Undo';
+    }
+
+    // Update hidden field
+    document.getElementById('recordsToDelete').value = JSON.stringify(Array.from(recordsToDelete));
+
+    // Save to sessionStorage
+    sessionStorage.setItem('recordsToDelete_{{ dataset.id }}', JSON.stringify(Array.from(recordsToDelete)));
+
+    // Update record count
+    updateRecordCount();
+
+    // Replace feather icons
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+}
+
+/**
+ * Remove a temporary record
+ */
+function removeTempRecord(tempId) {
+    // Remove from array
+    tempRecords = tempRecords.filter(rec => rec.temp_id !== tempId);
+
+    // Update sessionStorage
+    sessionStorage.setItem('tempRecords_{{ dataset.id }}', JSON.stringify(tempRecords));
+
+    // Remove from DOM
+    const recordElement = document.getElementById(`record-${tempId}`);
+    if (recordElement) {
+        recordElement.remove();
+    }
+
+    // Update record count
+    updateRecordCount();
+
+    // Reinitialize pagination
+    initPagination();
+}
+
+/**
+ * Render temporary records in the list
+ */
+function renderTempRecords() {
+    // Find the container where records are listed
+    const recordsList = document.querySelector('.list-group');
+    const paginationElement = document.getElementById('recordsPagination');
+
+    tempRecords.forEach(record => {
+        // Check if already rendered
+        if (document.getElementById(`record-${record.temp_id}`)) {
+            return;
+        }
+
+        // Create record element
+        const recordHTML = `
+            <div class="list-group-item material-record-item bg-success bg-opacity-10"
+                 data-record-id="${record.temp_id}"
+                 data-material-name="${(record.material_name || '').toLowerCase()}"
+                 data-temp="true"
+                 id="record-${record.temp_id}">
+                <div class="row">
+                    <div class="col-12">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div>
+                                <strong>${record.material_name}</strong>
+                                ${record.chemical_formula ? `<span class="text-muted">(${record.chemical_formula})</span>` : ''}
+                                <span class="badge bg-success ms-2">NEW</span>
+                            </div>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" onclick="removeTempRecord('${record.temp_id}')"
+                                       class="btn btn-danger btn-sm" title="Remove temporary record">
+                                    <i data-feather="x" style="width: 14px; height: 14px;"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-12">
+                                <small class="text-muted">
+                                    <strong>${record.property_name}:</strong> ${record.property_value}
+                                    ${record.property_unit ? record.property_unit : ''}
+                                </small>
+                            </div>
+                        </div>
+
+                        ${record.structure_type ? `
+                        <div class="row">
+                            <div class="col-12">
+                                <small class="text-muted">Structure: ${record.structure_type}</small>
+                            </div>
+                        </div>
+                        ` : ''}
+
+                        ${record.data_source ? `
+                        <div class="row mt-1">
+                            <div class="col-12">
+                                <span class="badge bg-info">${record.data_source}</span>
+                            </div>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Insert before pagination
+        paginationElement.insertAdjacentHTML('beforebegin', recordHTML);
+    });
+
+    // Replace feather icons
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+}
+
+/**
+ * Update record count including temporary records
+ */
+function updateRecordCount() {
+    const totalRecords = {{ total_records }};
+    const newCount = totalRecords - recordsToDelete.size + tempRecords.length;
+    document.getElementById('recordCount').textContent = newCount;
+}
+
+// When clicking edit button, track that the record is being edited
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.edit-record-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            const recordId = parseInt(this.getAttribute('data-record-id'));
+
+            // Remove from deletion list if it was marked
+            if (recordsToDelete.has(recordId)) {
+                recordsToDelete.delete(recordId);
+                sessionStorage.setItem('recordsToDelete_{{ dataset.id }}', JSON.stringify(Array.from(recordsToDelete)));
+            }
+
+            // Mark as edited
+            recordsEdited.add(recordId);
+            sessionStorage.setItem('recordsEdited_{{ dataset.id }}', JSON.stringify(Array.from(recordsEdited)));
+        });
+    });
+});
+
+/**
+ * Form submission handler
+ */
+document.getElementById('editDatasetForm').addEventListener('submit', function(e) {
+    // Update hidden fields before submit
+    document.getElementById('recordsToDelete').value = JSON.stringify(Array.from(recordsToDelete));
+    document.getElementById('recordsToEdit').value = JSON.stringify(Array.from(recordsEdited));
+    document.getElementById('recordsToAdd').value = JSON.stringify(tempRecords);
+
+    // Confirm if there are records to delete
+    if (recordsToDelete.size > 0) {
+        const message = `You are about to delete ${recordsToDelete.size} record(s). This action will be included in a new version. Continue?`;
+        if (!confirm(message)) {
+            e.preventDefault();
+            return false;
+        }
+    }
+
+    // Clear sessionStorage after successful submission
+    sessionStorage.removeItem('recordsToDelete_{{ dataset.id }}');
+    sessionStorage.removeItem('recordsEdited_{{ dataset.id }}');
+    sessionStorage.removeItem('tempRecords_{{ dataset.id }}');
+});
+
+/**
+ * Initialize pagination
+ */
+function initPagination() {
+    allRecords = Array.from(document.querySelectorAll('.material-record-item'));
+
+    if (allRecords.length > RECORDS_PER_PAGE) {
+        document.getElementById('recordsPagination').style.display = 'block';
+        renderPage(1);
+    } else {
+        document.getElementById('recordsPagination').style.display = 'none';
+        allRecords.forEach(record => record.style.display = '');
+    }
+}
+
+/**
+ * Render specific page
+ */
+function renderPage(page) {
+    currentPage = page;
+    const startIndex = (page - 1) * RECORDS_PER_PAGE;
+    const endIndex = startIndex + RECORDS_PER_PAGE;
+
+    // Hide all records first
+    allRecords.forEach((record, index) => {
+        if (index >= startIndex && index < endIndex) {
+            record.style.display = '';
+        } else {
+            record.style.display = 'none';
+        }
+    });
+
+    renderPaginationControls();
+
+    // Replace feather icons
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+}
+
+/**
+ * Render pagination controls
+ */
+function renderPaginationControls() {
+    const totalPages = Math.ceil(allRecords.length / RECORDS_PER_PAGE);
+    const paginationControls = document.getElementById('paginationControls');
+    paginationControls.innerHTML = '';
+
+    // Previous button
+    const prevLi = document.createElement('li');
+    prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+    prevLi.innerHTML = `<a class="page-link" href="#" onclick="return changePage(${currentPage - 1})">Previous</a>`;
+    paginationControls.appendChild(prevLi);
+
+    // Page numbers with ellipsis
+    const showPages = [];
+    if (totalPages <= 7) {
+        // Show all pages if 7 or less
+        for (let i = 1; i <= totalPages; i++) {
+            showPages.push(i);
+        }
+    } else {
+        // Always show first page
+        showPages.push(1);
+
+        if (currentPage > 3) {
+            showPages.push('...');
+        }
+
+        // Show pages around current page
+        for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
+            if (!showPages.includes(i)) {
+                showPages.push(i);
+            }
+        }
+
+        if (currentPage < totalPages - 2) {
+            showPages.push('...');
+        }
+
+        // Always show last page
+        if (!showPages.includes(totalPages)) {
+            showPages.push(totalPages);
+        }
+    }
+
+    showPages.forEach(page => {
+        const li = document.createElement('li');
+        if (page === '...') {
+            li.className = 'page-item disabled';
+            li.innerHTML = '<span class="page-link">...</span>';
+        } else {
+            li.className = `page-item ${page === currentPage ? 'active' : ''}`;
+            li.innerHTML = `<a class="page-link" href="#" onclick="return changePage(${page})">${page}</a>`;
+        }
+        paginationControls.appendChild(li);
+    });
+
+    // Next button
+    const nextLi = document.createElement('li');
+    nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
+    nextLi.innerHTML = `<a class="page-link" href="#" onclick="return changePage(${currentPage + 1})">Next</a>`;
+    paginationControls.appendChild(nextLi);
+}
+
+/**
+ * Change page
+ */
+function changePage(page) {
+    const totalPages = Math.ceil(allRecords.length / RECORDS_PER_PAGE);
+    if (page < 1 || page > totalPages) return false;
+    renderPage(page);
+    return false;
+}
+
+/**
+ * Filter materials by name
+ */
+function filterMaterials() {
+    const searchInput = document.getElementById('materialSearchInput');
+    const filter = searchInput.value.toLowerCase().trim();
+    const records = document.querySelectorAll('.material-record-item');
+    let visibleCount = 0;
+
+    if (filter) {
+        // Hide pagination when filtering
+        document.getElementById('recordsPagination').style.display = 'none';
+
+        records.forEach(record => {
+            const materialName = record.getAttribute('data-material-name');
+            if (materialName && materialName.includes(filter)) {
+                record.style.display = '';
+                visibleCount++;
+            } else {
+                record.style.display = 'none';
+            }
+        });
+
+        // Update result count
+        const resultCountElement = document.getElementById('searchResultCount');
+        resultCountElement.textContent = `Showing ${visibleCount} matching records`;
+        resultCountElement.classList.add('text-warning');
+    } else {
+        // Restore pagination when filter is cleared
+        initPagination();
+
+        const resultCountElement = document.getElementById('searchResultCount');
+        resultCountElement.textContent = '';
+        resultCountElement.classList.remove('text-warning');
+    }
+
+    // Replace feather icons after filtering
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+}
+
+/**
+ * Clear search filter
+ */
+function clearSearch() {
+    document.getElementById('materialSearchInput').value = '';
+    filterMaterials();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Render temporary records if any
+    if (tempRecords.length > 0) {
+        renderTempRecords();
+        updateRecordCount();
+    }
+
+    // Initialize pagination
+    initPagination();
+
+    // Initialize feather icons
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+
+    // Handle cancel button - clear sessionStorage
+    const cancelButtons = document.querySelectorAll('a[href*="view_materials_dataset"]');
+    cancelButtons.forEach(btn => {
+        if (btn.textContent.includes('Cancel') || btn.textContent.includes('Back')) {
+            btn.addEventListener('click', function() {
+                sessionStorage.removeItem('recordsToDelete_{{ dataset.id }}');
+                sessionStorage.removeItem('recordsEdited_{{ dataset.id }}');
+                sessionStorage.removeItem('tempRecords_{{ dataset.id }}');
+            });
+        }
+    });
+});
+</script>
+
+{% endblock %}

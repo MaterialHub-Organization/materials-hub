@@ -1,0 +1,140 @@
+{% extends "base_template.html" %}
+
+{% block title %}Version History - {{ dataset.ds_meta_data.title }}{% endblock %}
+
+{% block content %}
+
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h1 class="h3 mb-0">Version History</h1>
+            <a href="{{ url_for('dataset.view_materials_dataset', dataset_id=dataset.id) }}" class="btn btn-secondary">
+                <i data-feather="arrow-left"></i> Back to Dataset
+            </a>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">{{ dataset.ds_meta_data.title }}</h5>
+                <p class="card-text text-muted">{{ dataset.ds_meta_data.description[:150] }}...</p>
+            </div>
+        </div>
+
+        {% if versions %}
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i data-feather="clock"></i> Versions ({{ versions|length }})
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="GET" action="{{ url_for('dataset.compare_versions', dataset_id=dataset.id) }}" id="compareForm">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th width="50">Select</th>
+                                    <th>Version</th>
+                                    <th>Created</th>
+                                    <th>By</th>
+                                    <th>Records</th>
+                                    <th>Changes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for version in versions %}
+                                <tr>
+                                    <td>
+                                        <input type="checkbox"
+                                               name="version_select"
+                                               value="{{ version.id }}"
+                                               class="version-checkbox"
+                                               data-version-number="{{ version.version_number }}">
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-info">v{{ version.version_number }}</span>
+                                        {% if loop.index == 1 %}
+                                        <span class="badge bg-success">Current</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <small>{{ version.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                                    </td>
+                                    <td>{{ version.created_by }}</td>
+                                    <td>{{ version.records_count }} records</td>
+                                    <td>
+                                        {% if version.changelog %}
+                                        <small class="text-muted">{{ version.changelog.action }}</small>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="mt-3">
+                        <button type="submit" id="compareBtn" class="btn btn-primary" disabled>
+                            <i data-feather="git-compare"></i> Compare Selected Versions
+                        </button>
+                        <small class="text-muted ms-2">Select exactly 2 versions to compare</small>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% else %}
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <i data-feather="inbox" style="width: 48px; height: 48px;" class="text-muted mb-3"></i>
+                <p class="text-muted">No version history available yet.</p>
+                <p class="text-muted">Versions will be created automatically when you modify the dataset.</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const checkboxes = document.querySelectorAll('.version-checkbox');
+    const compareBtn = document.getElementById('compareBtn');
+    const form = document.getElementById('compareForm');
+
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const selected = document.querySelectorAll('.version-checkbox:checked');
+
+            // Only allow 2 selections
+            if (selected.length > 2) {
+                this.checked = false;
+                return;
+            }
+
+            compareBtn.disabled = selected.length !== 2;
+        });
+    });
+
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const selected = Array.from(document.querySelectorAll('.version-checkbox:checked'));
+
+        if (selected.length === 2) {
+            // Sort by version number to ensure older version is version_1 and newer is version_2
+            selected.sort((a, b) => {
+                return parseInt(a.dataset.versionNumber) - parseInt(b.dataset.versionNumber);
+            });
+
+            const version1 = selected[0].value;  // Older version (smaller number)
+            const version2 = selected[1].value;  // Newer version (larger number)
+            window.location.href = `{{ url_for('dataset.compare_versions', dataset_id=dataset.id) }}?version_1=${version1}&version_2=${version2}`;
+        }
+    });
+
+    // Initialize feather icons
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+});
+</script>
+
+{% endblock %}

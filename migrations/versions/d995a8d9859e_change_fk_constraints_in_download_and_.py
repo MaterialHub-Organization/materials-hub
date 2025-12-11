@@ -1,7 +1,7 @@
 """Change FK constraints in download and view records to materials_dataset
 
 Revision ID: d995a8d9859e
-Revises: 003
+Revises: 002
 Create Date: 2025-12-01 09:00:41.273768
 
 """
@@ -11,7 +11,7 @@ from sqlalchemy import inspect
 
 # revision identifiers, used by Alembic.
 revision = 'd995a8d9859e'
-down_revision = '003'
+down_revision = '002'
 branch_labels = None
 depends_on = None
 
