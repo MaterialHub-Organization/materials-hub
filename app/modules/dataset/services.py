@@ -894,3 +894,333 @@ class MaterialsDatasetService:
         if metric == "views":
             return self.materials_dataset_repository.get_top_views_global(limit=limit, days=days)
         return self.materials_dataset_repository.get_top_downloads_global(limit=limit, days=days)
+
+
+class DatasetVersionService:
+    def __init__(self):
+        from app.modules.dataset.repositories import DatasetVersionRepository, MaterialRecordRepository
+
+        self.version_repository = DatasetVersionRepository()
+        self.record_repository = MaterialRecordRepository()
+
+    def list_versions(self, dataset_id: int):
+        """List all versions for a dataset"""
+        return self.version_repository.get_by_dataset(dataset_id)
+
+    def get_version(self, version_id: int):
+        """Get specific version details"""
+        return self.version_repository.get_by_id(version_id)
+
+    def compare_files(self, version_id_1: int, version_id_2: int):
+        """
+        Compare CSV files between two versions.
+
+        Returns:
+            dict with added_records, deleted_records, modified_records, unchanged_records_count
+        """
+        import csv
+
+        version1 = self.version_repository.get_by_id(version_id_1)
+        version2 = self.version_repository.get_by_id(version_id_2)
+
+        if not version1 or not version2:
+            return None
+
+        # First, check if both CSVs have record_id column
+        def has_record_id_column(csv_path):
+            """Check if CSV file has record_id column"""
+            if not csv_path or not os.path.exists(csv_path):
+                return False
+
+            with open(csv_path, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                return "record_id" in reader.fieldnames if reader.fieldnames else False
+
+        # Determine comparison strategy
+        v1_has_id = has_record_id_column(version1.csv_snapshot_path)
+        v2_has_id = has_record_id_column(version2.csv_snapshot_path)
+
+        # Use ID-based comparison only if BOTH versions have record_id
+        # Otherwise, use content-based comparison for consistency
+        use_id_based = v1_has_id and v2_has_id
+
+        # Read both CSV files
+        def read_csv_as_dict(csv_path, use_id_keys=True):
+            records = {}
+            if not csv_path or not os.path.exists(csv_path):
+                return records
+
+            with open(csv_path, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    # Use record_id as primary key only if both versions support it
+                    record_id = row.get("record_id", "").strip()
+
+                    if use_id_keys and record_id:
+                        # New format: use record_id as key
+                        key = f"id:{record_id}"
+                    else:
+                        # Content-based key for backwards compatibility
+                        key_parts = []
+                        for field in [
+                            "material_name",
+                            "chemical_formula",
+                            "structure_type",
+                            "composition_method",
+                            "property_name",
+                            "property_value",
+                            "property_unit",
+                            "temperature",
+                            "pressure",
+                            "data_source",
+                            "uncertainty",
+                            "description",
+                        ]:
+                            val = row.get(field, "").strip()
+                            if val:
+                                key_parts.append(f"{field}:{val}")
+
+                        # Use the full content as key - if duplicate, append counter
+                        key = "||".join(key_parts)
+                        counter = 1
+                        original_key = key
+                        while key in records:
+                            key = f"{original_key}__duplicate_{counter}"
+                            counter += 1
+
+                    records[key] = row
+            return records
+
+        records1 = read_csv_as_dict(version1.csv_snapshot_path, use_id_based)
+        records2 = read_csv_as_dict(version2.csv_snapshot_path, use_id_based)
+
+        # Helper function to normalize values for comparison
+        def normalize_value(val):
+            """
+            Normalize values for comparison:
+            - Treat None, '', 'None' as equivalent empty values
+            - Treat numeric values equivalently (e.g., '300' == '300.0')
+            """
+            if val is None or val == "" or val == "None":
+                return ""
+
+            val_str = str(val).strip()
+
+            # Try to normalize numeric values (e.g., '300' and '300.0' should be equal)
+            try:
+                # Convert to float to handle both integers and decimals
+                num_val = float(val_str)
+                # Check if it's actually an integer value (no decimal part)
+                if num_val == int(num_val):
+                    # Return as integer string to match both '300' and '300.0'
+                    return str(int(num_val))
+                else:
+                    # Return as float string, but normalize the representation
+                    # This handles cases like '0.5' vs '0.50'
+                    return str(num_val)
+            except (ValueError, TypeError):
+                # Not a number, return as-is
+                return val_str
+
+        def records_are_equal(rec1, rec2):
+            """Compare two records with normalization, excluding record_id"""
+            rec1_normalized = {k: normalize_value(v) for k, v in rec1.items() if k != "record_id"}
+            rec2_normalized = {k: normalize_value(v) for k, v in rec2.items() if k != "record_id"}
+
+            # Debug logging for numeric comparison issues
+            if rec1_normalized != rec2_normalized:
+                for key in set(rec1_normalized.keys()) | set(rec2_normalized.keys()):
+                    val1 = rec1_normalized.get(key)
+                    val2 = rec2_normalized.get(key)
+                    if val1 != val2:
+                        orig1 = rec1.get(key)
+                        orig2 = rec2.get(key)
+                        logger.debug(
+                            f"Difference in '{key}': '{val1}' vs '{val2}' " f"(original: '{orig1}' vs '{orig2}')"
+                        )
+
+            return rec1_normalized == rec2_normalized
+
+        if use_id_based:
+            # ID-based comparison: straightforward key matching
+            keys1 = set(records1.keys())
+            keys2 = set(records2.keys())
+
+            added_keys = keys2 - keys1
+            deleted_keys = keys1 - keys2
+            common_keys = keys1 & keys2
+
+            added_records = [records2[k] for k in added_keys]
+            deleted_records = [records1[k] for k in deleted_keys]
+
+            # Check for modifications in common records
+            modified_records = []
+            unchanged_count = 0
+
+            for key in common_keys:
+                if not records_are_equal(records1[key], records2[key]):
+                    modified_records.append({"old": records1[key], "new": records2[key]})
+                else:
+                    unchanged_count += 1
+        else:
+            # Hybrid comparison: try to use record_id when available, fall back to content matching
+            # Build maps by record_id (when available) and by content key
+            id_map1 = {}  # record_id -> (key, record)
+            id_map2 = {}
+            content_map1 = {}  # content_key -> [(key, record)]
+            content_map2 = {}
+
+            def get_content_key(record):
+                """Generate a content-based key (less prone to change than full content)"""
+                # Use only the most stable fields
+                parts = []
+                for field in ["material_name", "property_name"]:
+                    val = record.get(field, "").strip()
+                    if val:
+                        parts.append(val)
+                return "||".join(parts) if parts else None
+
+            # Build indices
+            for key, record in records1.items():
+                record_id = record.get("record_id", "").strip()
+                if record_id:
+                    id_map1[record_id] = (key, record)
+
+                content_key = get_content_key(record)
+                if content_key:
+                    if content_key not in content_map1:
+                        content_map1[content_key] = []
+                    content_map1[content_key].append((key, record))
+
+            for key, record in records2.items():
+                record_id = record.get("record_id", "").strip()
+                if record_id:
+                    id_map2[record_id] = (key, record)
+
+                content_key = get_content_key(record)
+                if content_key:
+                    if content_key not in content_map2:
+                        content_map2[content_key] = []
+                    content_map2[content_key].append((key, record))
+
+            # Match records: prefer ID matching, fall back to content matching
+            matched_pairs = []
+            unmatched_keys1 = set(records1.keys())
+            unmatched_keys2 = set(records2.keys())
+
+            # First pass: match by record_id when both have it
+            for record_id, (key1, rec1) in id_map1.items():
+                if record_id in id_map2:
+                    key2, rec2 = id_map2[record_id]
+                    matched_pairs.append((key1, key2))
+                    unmatched_keys1.discard(key1)
+                    unmatched_keys2.discard(key2)
+
+            # Second pass: match remaining by content key
+            for content_key, pairs1 in content_map1.items():
+                if content_key in content_map2:
+                    pairs2 = content_map2[content_key]
+
+                    # Match unmatched records in order
+                    unmatched_pairs1 = [(k, r) for k, r in pairs1 if k in unmatched_keys1]
+                    unmatched_pairs2 = [(k, r) for k, r in pairs2 if k in unmatched_keys2]
+
+                    for i in range(min(len(unmatched_pairs1), len(unmatched_pairs2))):
+                        key1, _ = unmatched_pairs1[i]
+                        key2, _ = unmatched_pairs2[i]
+                        matched_pairs.append((key1, key2))
+                        unmatched_keys1.discard(key1)
+                        unmatched_keys2.discard(key2)
+
+            # Process results
+            added_records = [records2[k] for k in unmatched_keys2]
+            deleted_records = [records1[k] for k in unmatched_keys1]
+
+            modified_records = []
+            unchanged_count = 0
+
+            for key1, key2 in matched_pairs:
+                # Compare records using normalized comparison (treats None, '', 'None' as equivalent)
+                if not records_are_equal(records1[key1], records2[key2]):
+                    modified_records.append({"old": records1[key1], "new": records2[key2]})
+                else:
+                    unchanged_count += 1
+
+        return {
+            "added_records": added_records,
+            "deleted_records": deleted_records,
+            "modified_records": modified_records,
+            "unchanged_records_count": unchanged_count,
+            "total_v1": len(records1),
+            "total_v2": len(records2),
+        }
+
+    def compare_metadata(self, version_id_1: int, version_id_2: int):
+        """
+        Compare metadata between two versions.
+
+        Returns:
+            dict with field-by-field comparison
+        """
+        version1 = self.version_repository.get_by_id(version_id_1)
+        version2 = self.version_repository.get_by_id(version_id_2)
+
+        if not version1 or not version2:
+            return None
+
+        meta1 = version1.metadata_snapshot
+        meta2 = version2.metadata_snapshot
+
+        comparison = {}
+
+        # Compare each metadata field
+        all_keys = set(meta1.keys()) | set(meta2.keys())
+
+        for key in all_keys:
+            val1 = meta1.get(key)
+            val2 = meta2.get(key)
+
+            if key == "authors":
+                # Special handling for authors list
+                changed = val1 != val2
+                comparison[key] = {"old": val1, "new": val2, "changed": changed}
+            else:
+                comparison[key] = {"old": val1, "new": val2, "changed": val1 != val2}
+
+        return comparison
+
+    def get_csv_diff(self, version_id_1: int, version_id_2: int):
+        """
+        Generate unified diff for CSV content using difflib.
+
+        Returns:
+            str: unified diff output
+        """
+        import difflib
+
+        version1 = self.version_repository.get_by_id(version_id_1)
+        version2 = self.version_repository.get_by_id(version_id_2)
+
+        if not version1 or not version2:
+            return None
+
+        # Read file contents
+        def read_file_lines(path):
+            if not path or not os.path.exists(path):
+                return []
+            with open(path, "r", encoding="utf-8") as f:
+                return f.readlines()
+
+        lines1 = read_file_lines(version1.csv_snapshot_path)
+        lines2 = read_file_lines(version2.csv_snapshot_path)
+
+        # Generate unified diff
+        diff = difflib.unified_diff(
+            lines1,
+            lines2,
+            fromfile=f"Version {version1.version_number}",
+            tofile=f"Version {version2.version_number}",
+            lineterm="",
+        )
+
+        return "\n".join(diff)

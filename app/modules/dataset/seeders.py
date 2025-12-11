@@ -23,6 +23,343 @@ class DataSetSeeder(BaseSeeder):
 
     priority = 2  # Lower priority
 
+    def _create_dataset_versions(self, datasets, user1, user2):
+        """Create creative versions for datasets with different types of changes"""
+        from app import db
+        from app.modules.dataset.routes import create_version_snapshot, regenerate_csv_for_dataset
+
+        # Version 1: Dataset 0 (Ceramic Oxides) - Add new records
+        dataset = datasets[0]
+        print(f"  - Creating versions for {dataset.ds_meta_data.title}...")
+
+        # Create initial version
+        create_version_snapshot(dataset.id, user1.id, "Initial dataset creation")
+
+        # Add 2 new records
+        new_records = [
+            MaterialRecord(
+                materials_dataset_id=dataset.id,
+                material_name="Silicon Dioxide",
+                chemical_formula="SiO2",
+                structure_type="Amorphous",
+                composition_method="Melting",
+                property_name="thermal_expansion",
+                property_value=0.55,
+                property_unit="10^-6/K",
+                temperature=298,
+                pressure=101325,
+                data_source=DataSource.EXPERIMENTAL,
+                uncertainty=0.05,
+                description="Fused silica low expansion",
+            ),
+            MaterialRecord(
+                materials_dataset_id=dataset.id,
+                material_name="Magnesia",
+                chemical_formula="MgO",
+                structure_type="Cubic",
+                composition_method="Sintering",
+                property_name="melting_point",
+                property_value=2852,
+                property_unit="°C",
+                temperature=None,
+                pressure=101325,
+                data_source=DataSource.LITERATURE,
+                uncertainty=10,
+                description="Refractory oxide",
+            ),
+        ]
+        self.seed(new_records)
+        regenerate_csv_for_dataset(dataset.id)
+        create_version_snapshot(dataset.id, user1.id, "Added 2 new oxide materials")
+
+        # Version 2: Dataset 1 (Carbides) - Modify title and description
+        dataset = datasets[1]
+        print(f"  - Creating versions for {dataset.ds_meta_data.title}...")
+        create_version_snapshot(dataset.id, user2.id, "Initial dataset creation")
+
+        dataset.ds_meta_data.title = "Ultra-Hard Carbides and Nitrides Database"
+        dataset.ds_meta_data.description = (
+            "Comprehensive mechanical and thermal properties of ultra-hard carbides and nitrides "
+            "for extreme environment applications including cutting tools and protective coatings"
+        )
+        db.session.commit()
+        regenerate_csv_for_dataset(dataset.id)
+        create_version_snapshot(dataset.id, user2.id, "Enhanced title and description for clarity")
+
+        # Version 3: Dataset 2 (Metallic Alloys) - Delete a record
+        dataset = datasets[2]
+        print(f"  - Creating versions for {dataset.ds_meta_data.title}...")
+        create_version_snapshot(dataset.id, user1.id, "Initial dataset creation")
+
+        # Delete one record (Aluminum 6061)
+        record_to_delete = MaterialRecord.query.filter_by(
+            materials_dataset_id=dataset.id, material_name="Aluminum 6061"
+        ).first()
+        if record_to_delete:
+            db.session.delete(record_to_delete)
+            db.session.commit()
+        regenerate_csv_for_dataset(dataset.id)
+        create_version_snapshot(dataset.id, user1.id, "Removed outdated aluminum alloy data")
+
+        # Version 4: Dataset 3 (Semiconductors) - Modify values and add record
+        dataset = datasets[3]
+        print(f"  - Creating versions for {dataset.ds_meta_data.title}...")
+        create_version_snapshot(dataset.id, user2.id, "Initial dataset creation")
+
+        # Update Silicon bandgap value
+        silicon_record = MaterialRecord.query.filter_by(
+            materials_dataset_id=dataset.id, material_name="Silicon"
+        ).first()
+        if silicon_record:
+            silicon_record.property_value = 1.14  # Updated value
+            silicon_record.description = "Indirect bandgap - revised measurement"
+            silicon_record.uncertainty = 0.005
+            db.session.commit()
+
+        # Add new semiconductor
+        new_record = MaterialRecord(
+            materials_dataset_id=dataset.id,
+            material_name="Indium Phosphide",
+            chemical_formula="InP",
+            structure_type="Zinc Blende",
+            composition_method="Czochralski",
+            property_name="bandgap",
+            property_value=1.35,
+            property_unit="eV",
+            temperature=298,
+            pressure=101325,
+            data_source=DataSource.EXPERIMENTAL,
+            uncertainty=0.02,
+            description="Direct bandgap semiconductor",
+        )
+        self.seed([new_record])
+        regenerate_csv_for_dataset(dataset.id)
+        create_version_snapshot(dataset.id, user2.id, "Updated Silicon bandgap and added InP data")
+
+        # Version 5: Dataset 4 (2D Materials) - Major update with title change and records
+        dataset = datasets[4]
+        print(f"  - Creating versions for {dataset.ds_meta_data.title}...")
+        create_version_snapshot(dataset.id, user1.id, "Initial dataset creation")
+
+        dataset.ds_meta_data.title = "2D Materials & van der Waals Heterostructures"
+        dataset.ds_meta_data.description = (
+            "Mechanical, electronic, and optical properties of graphene, TMDs, "
+            "and van der Waals heterostructures for next-generation electronics"
+        )
+        dataset.ds_meta_data.tags = "2D materials, graphene, TMD, heterostructures, electronic"
+        db.session.commit()
+
+        # Add new 2D material
+        new_record = MaterialRecord(
+            materials_dataset_id=dataset.id,
+            material_name="WSe2",
+            chemical_formula="WSe2",
+            structure_type="2D Hexagonal",
+            composition_method="CVD",
+            property_name="bandgap",
+            property_value=1.65,
+            property_unit="eV",
+            temperature=298,
+            pressure=101325,
+            data_source=DataSource.EXPERIMENTAL,
+            uncertainty=0.08,
+            description="p-type TMD semiconductor",
+        )
+        self.seed([new_record])
+        regenerate_csv_for_dataset(dataset.id)
+        create_version_snapshot(dataset.id, user1.id, "Expanded scope to include heterostructures and added WSe2")
+
+        # Version 6: Dataset 7 (High Entropy Alloys) - Multiple changes
+        dataset = datasets[7]
+        print(f"  - Creating versions for {dataset.ds_meta_data.title}...")
+        create_version_snapshot(dataset.id, user2.id, "Initial dataset creation")
+
+        # Update description
+        dataset.ds_meta_data.description = (
+            "Mechanical properties and phase stability of high entropy alloys "
+            "across temperature ranges from cryogenic to high temperature"
+        )
+        db.session.commit()
+
+        # Modify a record
+        hea_record = MaterialRecord.query.filter_by(materials_dataset_id=dataset.id, material_name="AlCoCrFeNi").first()
+        if hea_record:
+            hea_record.property_value = 5.5  # Updated hardness
+            hea_record.description = "High hardness HEA - after annealing"
+            db.session.commit()
+
+        regenerate_csv_for_dataset(dataset.id)
+        create_version_snapshot(
+            dataset.id, user2.id, "Updated description and revised AlCoCrFeNi hardness after heat treatment"
+        )
+
+        # Add another version with new data
+        new_record = MaterialRecord(
+            materials_dataset_id=dataset.id,
+            material_name="TiZrNbHfTa",
+            chemical_formula="TiZrNbHfTa",
+            structure_type="BCC",
+            composition_method="Arc Melting",
+            property_name="density",
+            property_value=10.2,
+            property_unit="g/cm³",
+            temperature=298,
+            pressure=101325,
+            data_source=DataSource.EXPERIMENTAL,
+            uncertainty=0.1,
+            description="Refractory HEA composition",
+        )
+        self.seed([new_record])
+        regenerate_csv_for_dataset(dataset.id)
+        create_version_snapshot(dataset.id, user2.id, "Added refractory HEA composition")
+
+        # Version 7: Dataset 10 (Battery Materials) - Comprehensive update
+        dataset = datasets[10]
+        print(f"  - Creating versions for {dataset.ds_meta_data.title}...")
+        create_version_snapshot(dataset.id, user1.id, "Initial dataset creation")
+
+        dataset.ds_meta_data.title = "Next-Generation Battery Materials Database"
+        dataset.ds_meta_data.description = (
+            "Electrochemical properties of cathode, anode, and solid electrolyte materials "
+            "for lithium-ion, sodium-ion, and solid-state batteries"
+        )
+        dataset.ds_meta_data.tags = "battery, electrochemical, energy storage, cathode, anode, solid-state"
+        db.session.commit()
+
+        # Delete one record (LiCoO2)
+        record_to_delete = MaterialRecord.query.filter_by(
+            materials_dataset_id=dataset.id, material_name="LiCoO2"
+        ).first()
+        if record_to_delete:
+            db.session.delete(record_to_delete)
+            db.session.commit()
+
+        # Add two new materials
+        new_records = [
+            MaterialRecord(
+                materials_dataset_id=dataset.id,
+                material_name="LiNi0.8Co0.1Mn0.1O2",
+                chemical_formula="LiNi0.8Co0.1Mn0.1O2",
+                structure_type="Layered",
+                composition_method="Co-precipitation",
+                property_name="specific_capacity",
+                property_value=200,
+                property_unit="mAh/g",
+                temperature=298,
+                pressure=101325,
+                data_source=DataSource.EXPERIMENTAL,
+                uncertainty=10,
+                description="High nickel cathode NMC811",
+            ),
+            MaterialRecord(
+                materials_dataset_id=dataset.id,
+                material_name="LLZO",
+                chemical_formula="Li7La3Zr2O12",
+                structure_type="Garnet",
+                composition_method="Solid State",
+                property_name="ionic_conductivity",
+                property_value=0.5,
+                property_unit="mS/cm",
+                temperature=298,
+                pressure=101325,
+                data_source=DataSource.LITERATURE,
+                uncertainty=0.05,
+                description="Solid electrolyte",
+            ),
+        ]
+        self.seed(new_records)
+        regenerate_csv_for_dataset(dataset.id)
+        create_version_snapshot(dataset.id, user1.id, "Replaced legacy LiCoO2 with NMC811 and added solid electrolyte")
+
+        # Version 8: Dataset 17 (Perovskite) - Fix data errors
+        dataset = datasets[17]
+        print(f"  - Creating versions for {dataset.ds_meta_data.title}...")
+        create_version_snapshot(dataset.id, user2.id, "Initial dataset creation")
+
+        # Update all records with corrected temperature
+        perovskite_records = MaterialRecord.query.filter_by(materials_dataset_id=dataset.id).all()
+        for record in perovskite_records:
+            record.temperature = 300  # Corrected temperature
+        db.session.commit()
+
+        regenerate_csv_for_dataset(dataset.id)
+        create_version_snapshot(dataset.id, user2.id, "Corrected temperature measurements (298K -> 300K)")
+
+        # Another version with title refinement
+        dataset.ds_meta_data.title = "Halide Perovskite Materials for Photovoltaics"
+        db.session.commit()
+        regenerate_csv_for_dataset(dataset.id)
+        create_version_snapshot(dataset.id, user2.id, "Refined title to specify halide perovskites")
+
+        # Version 9: Dataset 19 (Thermal Barrier Coatings) - Delete and modify
+        dataset = datasets[19]
+        print(f"  - Creating versions for {dataset.ds_meta_data.title}...")
+        create_version_snapshot(dataset.id, user1.id, "Initial dataset creation")
+
+        # Delete a record
+        record_to_delete = MaterialRecord.query.filter_by(
+            materials_dataset_id=dataset.id, material_name="YSZ", composition_method="EB-PVD"
+        ).first()
+        if record_to_delete:
+            db.session.delete(record_to_delete)
+            db.session.commit()
+
+        # Modify remaining YSZ record
+        ysz_record = MaterialRecord.query.filter_by(
+            materials_dataset_id=dataset.id, material_name="YSZ", composition_method="APS"
+        ).first()
+        if ysz_record:
+            ysz_record.property_value = 2.1  # Updated thermal conductivity
+            ysz_record.uncertainty = 0.15
+            ysz_record.description = "Standard TBC - revised measurement"
+            db.session.commit()
+
+        regenerate_csv_for_dataset(dataset.id)
+        create_version_snapshot(dataset.id, user1.id, "Removed EB-PVD data and updated APS thermal conductivity")
+
+        # Version 10: Dataset 5 (Polymers) - Add new polymers
+        dataset = datasets[5]
+        print(f"  - Creating versions for {dataset.ds_meta_data.title}...")
+        create_version_snapshot(dataset.id, user1.id, "Initial dataset creation")
+
+        new_records = [
+            MaterialRecord(
+                materials_dataset_id=dataset.id,
+                material_name="PLA",
+                chemical_formula="(C3H4O2)n",
+                structure_type="Semi-crystalline",
+                composition_method="Extrusion",
+                property_name="glass_transition",
+                property_value=60,
+                property_unit="°C",
+                temperature=None,
+                pressure=101325,
+                data_source=DataSource.LITERATURE,
+                uncertainty=3,
+                description="Biodegradable polymer",
+            ),
+            MaterialRecord(
+                materials_dataset_id=dataset.id,
+                material_name="PTFE",
+                chemical_formula="(C2F4)n",
+                structure_type="Semi-crystalline",
+                composition_method="Suspension",
+                property_name="melting_point",
+                property_value=327,
+                property_unit="°C",
+                temperature=None,
+                pressure=101325,
+                data_source=DataSource.DATABASE,
+                uncertainty=2,
+                description="Teflon fluoropolymer",
+            ),
+        ]
+        self.seed(new_records)
+        regenerate_csv_for_dataset(dataset.id)
+        create_version_snapshot(dataset.id, user1.id, "Added biodegradable and fluoropolymer materials")
+
+        print("  ✓ Dataset versions created successfully!")
+
     def run(self):
         # Retrieve users
         user1 = User.query.filter_by(email="user1@example.com").first()
@@ -1382,3 +1719,7 @@ class DataSetSeeder(BaseSeeder):
             f"Generated {len(all_download_records)} download records and "
             f"{len(all_view_records)} view records for MaterialsDatasets"
         )
+
+        # Create versions for datasets with different types of changes
+        print("Creating dataset versions with different changes...")
+        self._create_dataset_versions(seeded_materials_datasets, user1, user2)

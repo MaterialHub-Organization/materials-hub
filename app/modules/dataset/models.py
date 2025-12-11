@@ -162,10 +162,10 @@ class MaterialRecord(db.Model):
     property_name = db.Column(db.String(256), nullable=False)
     property_value = db.Column(db.String(256), nullable=False)
     property_unit = db.Column(db.String(128))
-    temperature = db.Column(db.Integer)
-    pressure = db.Column(db.Integer)
+    temperature = db.Column(db.Float)  # Changed from Integer to support decimal temperatures
+    pressure = db.Column(db.Float)  # Changed from Integer to support decimal pressures
     data_source = db.Column(SQLAlchemyEnum(DataSource))
-    uncertainty = db.Column(db.Integer)
+    uncertainty = db.Column(db.Float)  # Changed from Integer to support decimal uncertainty values
     description = db.Column(db.Text)
 
     def to_dict(self):
@@ -312,3 +312,53 @@ class DOIMapping(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     dataset_doi_old = db.Column(db.String(120))
     dataset_doi_new = db.Column(db.String(120))
+
+
+class DatasetVersion(db.Model):
+    """Model for storing dataset version snapshots"""
+
+    __tablename__ = "dataset_version"
+
+    id = db.Column(db.Integer, primary_key=True)
+    materials_dataset_id = db.Column(db.Integer, db.ForeignKey("materials_dataset.id"), nullable=False)
+    version_number = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True)
+
+    # Snapshots
+    csv_snapshot_path = db.Column(db.String(512), nullable=False)
+    metadata_snapshot = db.Column(db.JSON, nullable=False)
+
+    # Change tracking
+    changelog = db.Column(db.JSON, nullable=True)
+
+    # Stats at version time
+    records_count = db.Column(db.Integer)
+
+    # Relationships
+    materials_dataset = db.relationship(
+        "MaterialsDataset",
+        backref=db.backref(
+            "versions", lazy=True, cascade="all, delete", order_by="DatasetVersion.version_number.desc()"
+        ),
+    )
+    created_by = db.relationship("User")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "version_number": self.version_number,
+            "created_at": self.created_at,
+            "created_at_timestamp": int(self.created_at.timestamp()),
+            "created_by": (
+                f"{self.created_by.profile.name} {self.created_by.profile.surname}"
+                if self.created_by and self.created_by.profile
+                else "Unknown"
+            ),
+            "records_count": self.records_count,
+            "changelog": self.changelog,
+            "csv_snapshot_path": self.csv_snapshot_path,
+        }
+
+    def __repr__(self):
+        return f"DatasetVersion<{self.id}: v{self.version_number} of dataset {self.materials_dataset_id}>"

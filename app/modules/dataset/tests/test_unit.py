@@ -13,6 +13,7 @@ from app.modules.auth.models import User
 from app.modules.auth.repositories import UserRepository
 from app.modules.dataset.models import (
     Author,
+    DatasetVersion,
     DataSource,
     DOIMapping,
     DSDownloadRecord,
@@ -24,6 +25,7 @@ from app.modules.dataset.models import (
 )
 from app.modules.dataset.repositories import (
     AuthorRepository,
+    DatasetVersionRepository,
     DSDownloadRecordRepository,
     DSMetaDataRepository,
     DSViewRecordRepository,
@@ -32,6 +34,7 @@ from app.modules.dataset.repositories import (
 )
 from app.modules.dataset.services import (
     AuthorService,
+    DatasetVersionService,
     DOIMappingService,
     DSDownloadRecordService,
     DSMetaDataService,
@@ -2267,3 +2270,608 @@ def test_materials_dataset_service_get_recommendations_nonexistent_dataset(test_
     recommendations = service.get_recommendations(materials_dataset_id=999999, limit=3)
 
     assert recommendations == []
+
+
+# ============================================================================
+# Tests for Dataset Versioning - DatasetVersion Model
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_dataset_version_to_dict(test_client):
+    """Test DatasetVersion.to_dict() method"""
+    user = User(email="test_version_to_dict@example.com", password="test123")
+    db.session.add(user)
+    db.session.commit()
+
+    metadata = DSMetaData(title="Test Dataset", description="Test", publication_type=PublicationType.NONE)
+    db.session.add(metadata)
+    db.session.commit()
+
+    dataset = MaterialsDataset(user_id=user.id, ds_meta_data_id=metadata.id, csv_file_path="/path/to/file.csv")
+    db.session.add(dataset)
+    db.session.commit()
+
+    # Create a version
+    version = DatasetVersion(
+        materials_dataset_id=dataset.id,
+        version_number=1,
+        created_by_user_id=user.id,
+        csv_snapshot_path="/path/to/snapshot_v1.csv",
+        metadata_snapshot={"title": "Test Dataset", "description": "Test"},
+        changelog={"action": "Created dataset"},
+        records_count=10,
+    )
+    db.session.add(version)
+    db.session.commit()
+
+    result = version.to_dict()
+
+    assert result["id"] == version.id
+    assert result["version_number"] == 1
+    assert result["records_count"] == 10
+    assert result["changelog"] == {"action": "Created dataset"}
+    assert "created_at" in result
+    assert "created_at_timestamp" in result
+
+
+@pytest.mark.unit
+def test_dataset_version_relationship_with_dataset(test_client):
+    """Test DatasetVersion relationship with MaterialsDataset"""
+    user = User(email="test_version_relationship@example.com", password="test123")
+    db.session.add(user)
+    db.session.commit()
+
+    metadata = DSMetaData(title="Test", description="Test", publication_type=PublicationType.NONE)
+    db.session.add(metadata)
+    db.session.commit()
+
+    dataset = MaterialsDataset(user_id=user.id, ds_meta_data_id=metadata.id, csv_file_path="/path/to/file.csv")
+    db.session.add(dataset)
+    db.session.commit()
+
+    # Create two versions
+    for i in range(1, 3):
+        version = DatasetVersion(
+            materials_dataset_id=dataset.id,
+            version_number=i,
+            created_by_user_id=user.id,
+            csv_snapshot_path=f"/path/to/snapshot_v{i}.csv",
+            metadata_snapshot={"title": "Test"},
+            records_count=10,
+        )
+        db.session.add(version)
+    db.session.commit()
+
+    # Verify relationship
+    assert len(dataset.versions) == 2
+    assert dataset.versions[0].version_number == 2  # Ordered DESC
+    assert dataset.versions[1].version_number == 1
+
+
+@pytest.mark.unit
+def test_dataset_version_cascade_delete(test_client):
+    """Test that deleting a dataset deletes its versions"""
+    user = User(email="test_version_cascade@example.com", password="test123")
+    db.session.add(user)
+    db.session.commit()
+
+    metadata = DSMetaData(title="Test", description="Test", publication_type=PublicationType.NONE)
+    db.session.add(metadata)
+    db.session.commit()
+
+    dataset = MaterialsDataset(user_id=user.id, ds_meta_data_id=metadata.id, csv_file_path="/path/to/file.csv")
+    db.session.add(dataset)
+    db.session.commit()
+
+    version = DatasetVersion(
+        materials_dataset_id=dataset.id,
+        version_number=1,
+        created_by_user_id=user.id,
+        csv_snapshot_path="/path/to/snapshot.csv",
+        metadata_snapshot={"title": "Test"},
+        records_count=10,
+    )
+    db.session.add(version)
+    db.session.commit()
+
+    version_id = version.id
+
+    # Delete dataset
+    db.session.delete(dataset)
+    db.session.commit()
+
+    # Verify version was also deleted
+    deleted_version = DatasetVersion.query.get(version_id)
+    assert deleted_version is None
+
+
+# ============================================================================
+# Tests for DatasetVersionRepository
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_dataset_version_repository_get_by_dataset(test_client):
+    """Test DatasetVersionRepository.get_by_dataset() method"""
+    user = User(email="test_version_repo_get@example.com", password="test123")
+    db.session.add(user)
+    db.session.commit()
+
+    metadata = DSMetaData(title="Test", description="Test", publication_type=PublicationType.NONE)
+    db.session.add(metadata)
+    db.session.commit()
+
+    dataset = MaterialsDataset(user_id=user.id, ds_meta_data_id=metadata.id, csv_file_path="/path/to/file.csv")
+    db.session.add(dataset)
+    db.session.commit()
+
+    # Create 3 versions
+    for i in range(1, 4):
+        version = DatasetVersion(
+            materials_dataset_id=dataset.id,
+            version_number=i,
+            created_by_user_id=user.id,
+            csv_snapshot_path=f"/path/to/snapshot_v{i}.csv",
+            metadata_snapshot={"title": "Test"},
+            records_count=10,
+        )
+        db.session.add(version)
+    db.session.commit()
+
+    repo = DatasetVersionRepository()
+    versions = repo.get_by_dataset(dataset.id)
+
+    assert len(versions) == 3
+    assert versions[0].version_number == 3  # Ordered DESC
+    assert versions[1].version_number == 2
+    assert versions[2].version_number == 1
+
+
+@pytest.mark.unit
+def test_dataset_version_repository_get_next_version_number(test_client):
+    """Test DatasetVersionRepository.get_next_version_number() method"""
+    user = User(email="test_next_version_num@example.com", password="test123")
+    db.session.add(user)
+    db.session.commit()
+
+    metadata = DSMetaData(title="Test", description="Test", publication_type=PublicationType.NONE)
+    db.session.add(metadata)
+    db.session.commit()
+
+    dataset = MaterialsDataset(user_id=user.id, ds_meta_data_id=metadata.id, csv_file_path="/path/to/file.csv")
+    db.session.add(dataset)
+    db.session.commit()
+
+    repo = DatasetVersionRepository()
+
+    # No versions yet - should return 1
+    next_version = repo.get_next_version_number(dataset.id)
+    assert next_version == 1
+
+    # Create version 1
+    version1 = DatasetVersion(
+        materials_dataset_id=dataset.id,
+        version_number=1,
+        created_by_user_id=user.id,
+        csv_snapshot_path="/path/to/snapshot_v1.csv",
+        metadata_snapshot={"title": "Test"},
+        records_count=10,
+    )
+    db.session.add(version1)
+    db.session.commit()
+
+    # Should now return 2
+    next_version = repo.get_next_version_number(dataset.id)
+    assert next_version == 2
+
+    # Create version 2
+    version2 = DatasetVersion(
+        materials_dataset_id=dataset.id,
+        version_number=2,
+        created_by_user_id=user.id,
+        csv_snapshot_path="/path/to/snapshot_v2.csv",
+        metadata_snapshot={"title": "Test"},
+        records_count=15,
+    )
+    db.session.add(version2)
+    db.session.commit()
+
+    # Should now return 3
+    next_version = repo.get_next_version_number(dataset.id)
+    assert next_version == 3
+
+
+@pytest.mark.unit
+def test_dataset_version_repository_get_latest_version(test_client):
+    """Test DatasetVersionRepository.get_latest_version() method"""
+    user = User(email="test_latest_version@example.com", password="test123")
+    db.session.add(user)
+    db.session.commit()
+
+    metadata = DSMetaData(title="Test", description="Test", publication_type=PublicationType.NONE)
+    db.session.add(metadata)
+    db.session.commit()
+
+    dataset = MaterialsDataset(user_id=user.id, ds_meta_data_id=metadata.id, csv_file_path="/path/to/file.csv")
+    db.session.add(dataset)
+    db.session.commit()
+
+    repo = DatasetVersionRepository()
+
+    # No versions yet
+    latest = repo.get_latest_version(dataset.id)
+    assert latest is None
+
+    # Create versions 1, 2, 3
+    for i in range(1, 4):
+        version = DatasetVersion(
+            materials_dataset_id=dataset.id,
+            version_number=i,
+            created_by_user_id=user.id,
+            csv_snapshot_path=f"/path/to/snapshot_v{i}.csv",
+            metadata_snapshot={"title": "Test"},
+            records_count=10 + i,
+        )
+        db.session.add(version)
+    db.session.commit()
+
+    # Should return version 3
+    latest = repo.get_latest_version(dataset.id)
+    assert latest is not None
+    assert latest.version_number == 3
+    assert latest.records_count == 13
+
+
+@pytest.mark.unit
+def test_dataset_version_repository_get_by_version_number(test_client):
+    """Test DatasetVersionRepository.get_by_version_number() method"""
+    user = User(email="test_get_by_version_num@example.com", password="test123")
+    db.session.add(user)
+    db.session.commit()
+
+    metadata = DSMetaData(title="Test", description="Test", publication_type=PublicationType.NONE)
+    db.session.add(metadata)
+    db.session.commit()
+
+    dataset = MaterialsDataset(user_id=user.id, ds_meta_data_id=metadata.id, csv_file_path="/path/to/file.csv")
+    db.session.add(dataset)
+    db.session.commit()
+
+    # Create version 2 (intentionally skip 1)
+    version2 = DatasetVersion(
+        materials_dataset_id=dataset.id,
+        version_number=2,
+        created_by_user_id=user.id,
+        csv_snapshot_path="/path/to/snapshot_v2.csv",
+        metadata_snapshot={"title": "Test"},
+        records_count=20,
+    )
+    db.session.add(version2)
+    db.session.commit()
+
+    repo = DatasetVersionRepository()
+
+    # Get version 2
+    version = repo.get_version_by_number(dataset.id, 2)
+    assert version is not None
+    assert version.version_number == 2
+    assert version.records_count == 20
+
+    # Try to get non-existent version 1
+    version = repo.get_version_by_number(dataset.id, 1)
+    assert version is None
+
+
+# ============================================================================
+# Tests for DatasetVersionService
+# ============================================================================
+
+
+@pytest.mark.unit
+def test_dataset_version_service_list_versions(test_client):
+    """Test DatasetVersionService.list_versions() method"""
+    user = User(email="test_service_list_versions@example.com", password="test123")
+    db.session.add(user)
+    db.session.commit()
+
+    metadata = DSMetaData(title="Test", description="Test", publication_type=PublicationType.NONE)
+    db.session.add(metadata)
+    db.session.commit()
+
+    dataset = MaterialsDataset(user_id=user.id, ds_meta_data_id=metadata.id, csv_file_path="/path/to/file.csv")
+    db.session.add(dataset)
+    db.session.commit()
+
+    # Create 2 versions
+    for i in range(1, 3):
+        version = DatasetVersion(
+            materials_dataset_id=dataset.id,
+            version_number=i,
+            created_by_user_id=user.id,
+            csv_snapshot_path=f"/path/to/snapshot_v{i}.csv",
+            metadata_snapshot={"title": "Test"},
+            records_count=10 + i,
+        )
+        db.session.add(version)
+    db.session.commit()
+
+    service = DatasetVersionService()
+    versions = service.list_versions(dataset.id)
+
+    assert len(versions) == 2
+    assert versions[0].version_number == 2  # DESC order
+    assert versions[1].version_number == 1
+
+
+@pytest.mark.unit
+def test_dataset_version_service_compare_metadata(test_client):
+    """Test DatasetVersionService.compare_metadata() method"""
+    user = User(email="test_compare_metadata@example.com", password="test123")
+    db.session.add(user)
+    db.session.commit()
+
+    metadata = DSMetaData(title="Test", description="Test", publication_type=PublicationType.NONE)
+    db.session.add(metadata)
+    db.session.commit()
+
+    dataset = MaterialsDataset(user_id=user.id, ds_meta_data_id=metadata.id, csv_file_path="/path/to/file.csv")
+    db.session.add(dataset)
+    db.session.commit()
+
+    # Create version 1 with original metadata
+    version1 = DatasetVersion(
+        materials_dataset_id=dataset.id,
+        version_number=1,
+        created_by_user_id=user.id,
+        csv_snapshot_path="/path/to/snapshot_v1.csv",
+        metadata_snapshot={"title": "Original Title", "description": "Original Description", "tags": "tag1,tag2"},
+        records_count=10,
+    )
+    db.session.add(version1)
+
+    # Create version 2 with modified metadata
+    version2 = DatasetVersion(
+        materials_dataset_id=dataset.id,
+        version_number=2,
+        created_by_user_id=user.id,
+        csv_snapshot_path="/path/to/snapshot_v2.csv",
+        metadata_snapshot={"title": "Updated Title", "description": "Original Description", "tags": "tag1,tag3"},
+        records_count=12,
+    )
+    db.session.add(version2)
+    db.session.commit()
+
+    service = DatasetVersionService()
+    comparison = service.compare_metadata(version1.id, version2.id)
+
+    # Title should be changed
+    assert comparison["title"]["old"] == "Original Title"
+    assert comparison["title"]["new"] == "Updated Title"
+    assert comparison["title"]["changed"] is True
+
+    # Description should be unchanged
+    assert comparison["description"]["old"] == "Original Description"
+    assert comparison["description"]["new"] == "Original Description"
+    assert comparison["description"]["changed"] is False
+
+    # Tags should be changed
+    assert comparison["tags"]["changed"] is True
+
+
+@pytest.mark.unit
+def test_dataset_version_service_compare_files(test_client):
+    """Test DatasetVersionService.compare_files() method"""
+    import csv
+    import os
+
+    user = User(email="test_compare_files@example.com", password="test123")
+    db.session.add(user)
+    db.session.commit()
+
+    metadata = DSMetaData(title="Test", description="Test", publication_type=PublicationType.NONE)
+    db.session.add(metadata)
+    db.session.commit()
+
+    dataset = MaterialsDataset(user_id=user.id, ds_meta_data_id=metadata.id, csv_file_path="/path/to/file.csv")
+    db.session.add(dataset)
+    db.session.commit()
+
+    # Create temporary CSV files for version 1
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix="_v1.csv", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["material_name", "property_name", "property_value"])
+        writer.writerow(["Silicon", "density", "2.33"])
+        writer.writerow(["Aluminum", "density", "2.70"])
+        csv_path_v1 = f.name
+
+    # Create temporary CSV files for version 2 (modified Aluminum, added Copper, removed Silicon)
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix="_v2.csv", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["material_name", "property_name", "property_value"])
+        writer.writerow(["Aluminum", "density", "2.75"])  # Modified value
+        writer.writerow(["Copper", "density", "8.96"])  # Added
+        csv_path_v2 = f.name
+
+    try:
+        # Create versions with these CSV files
+        version1 = DatasetVersion(
+            materials_dataset_id=dataset.id,
+            version_number=1,
+            created_by_user_id=user.id,
+            csv_snapshot_path=csv_path_v1,
+            metadata_snapshot={"title": "Test"},
+            records_count=2,
+        )
+        db.session.add(version1)
+
+        version2 = DatasetVersion(
+            materials_dataset_id=dataset.id,
+            version_number=2,
+            created_by_user_id=user.id,
+            csv_snapshot_path=csv_path_v2,
+            metadata_snapshot={"title": "Test"},
+            records_count=2,
+        )
+        db.session.add(version2)
+        db.session.commit()
+
+        service = DatasetVersionService()
+        comparison = service.compare_files(version1.id, version2.id)
+
+        # Verify comparison results
+        assert len(comparison["added_records"]) == 1  # Copper added
+        assert comparison["added_records"][0]["material_name"] == "Copper"
+
+        assert len(comparison["deleted_records"]) == 1  # Silicon removed
+        assert comparison["deleted_records"][0]["material_name"] == "Silicon"
+
+        assert len(comparison["modified_records"]) == 1  # Aluminum modified
+        assert comparison["modified_records"][0]["old"]["material_name"] == "Aluminum"
+        assert comparison["modified_records"][0]["new"]["material_name"] == "Aluminum"
+
+    finally:
+        # Clean up temporary files
+        if os.path.exists(csv_path_v1):
+            os.unlink(csv_path_v1)
+        if os.path.exists(csv_path_v2):
+            os.unlink(csv_path_v2)
+
+
+@pytest.mark.unit
+def test_dataset_version_service_get_csv_diff(test_client):
+    """Test DatasetVersionService.get_csv_diff() method"""
+    import csv
+    import os
+
+    user = User(email="test_get_csv_diff@example.com", password="test123")
+    db.session.add(user)
+    db.session.commit()
+
+    metadata = DSMetaData(title="Test", description="Test", publication_type=PublicationType.NONE)
+    db.session.add(metadata)
+    db.session.commit()
+
+    dataset = MaterialsDataset(user_id=user.id, ds_meta_data_id=metadata.id, csv_file_path="/path/to/file.csv")
+    db.session.add(dataset)
+    db.session.commit()
+
+    # Create temporary CSV files
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix="_v1.csv", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["material_name", "property_name", "property_value"])
+        writer.writerow(["Silicon", "density", "2.33"])
+        csv_path_v1 = f.name
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix="_v2.csv", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["material_name", "property_name", "property_value"])
+        writer.writerow(["Silicon", "density", "2.35"])  # Modified value
+        csv_path_v2 = f.name
+
+    try:
+        version1 = DatasetVersion(
+            materials_dataset_id=dataset.id,
+            version_number=1,
+            created_by_user_id=user.id,
+            csv_snapshot_path=csv_path_v1,
+            metadata_snapshot={"title": "Test"},
+            records_count=1,
+        )
+        db.session.add(version1)
+
+        version2 = DatasetVersion(
+            materials_dataset_id=dataset.id,
+            version_number=2,
+            created_by_user_id=user.id,
+            csv_snapshot_path=csv_path_v2,
+            metadata_snapshot={"title": "Test"},
+            records_count=1,
+        )
+        db.session.add(version2)
+        db.session.commit()
+
+        service = DatasetVersionService()
+        diff = service.get_csv_diff(version1.id, version2.id)
+
+        # Verify diff contains the change
+        assert diff is not None
+        assert isinstance(diff, str)
+        assert "2.33" in diff or "2.35" in diff  # Should contain the changed values
+
+    finally:
+        # Clean up
+        if os.path.exists(csv_path_v1):
+            os.unlink(csv_path_v1)
+        if os.path.exists(csv_path_v2):
+            os.unlink(csv_path_v2)
+
+
+@pytest.mark.unit
+def test_dataset_version_service_compare_files_no_changes(test_client):
+    """Test DatasetVersionService.compare_files() with identical files"""
+    import csv
+    import os
+
+    user = User(email="test_compare_no_changes@example.com", password="test123")
+    db.session.add(user)
+    db.session.commit()
+
+    metadata = DSMetaData(title="Test", description="Test", publication_type=PublicationType.NONE)
+    db.session.add(metadata)
+    db.session.commit()
+
+    dataset = MaterialsDataset(user_id=user.id, ds_meta_data_id=metadata.id, csv_file_path="/path/to/file.csv")
+    db.session.add(dataset)
+    db.session.commit()
+
+    # Create identical CSV files
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix="_v1.csv", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["material_name", "property_name", "property_value"])
+        writer.writerow(["Silicon", "density", "2.33"])
+        csv_path_v1 = f.name
+
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix="_v2.csv", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["material_name", "property_name", "property_value"])
+        writer.writerow(["Silicon", "density", "2.33"])
+        csv_path_v2 = f.name
+
+    try:
+        version1 = DatasetVersion(
+            materials_dataset_id=dataset.id,
+            version_number=1,
+            created_by_user_id=user.id,
+            csv_snapshot_path=csv_path_v1,
+            metadata_snapshot={"title": "Test"},
+            records_count=1,
+        )
+        db.session.add(version1)
+
+        version2 = DatasetVersion(
+            materials_dataset_id=dataset.id,
+            version_number=2,
+            created_by_user_id=user.id,
+            csv_snapshot_path=csv_path_v2,
+            metadata_snapshot={"title": "Test"},
+            records_count=1,
+        )
+        db.session.add(version2)
+        db.session.commit()
+
+        service = DatasetVersionService()
+        comparison = service.compare_files(version1.id, version2.id)
+
+        # No changes
+        assert len(comparison["added_records"]) == 0
+        assert len(comparison["deleted_records"]) == 0
+        assert len(comparison["modified_records"]) == 0
+        assert comparison["unchanged_records_count"] == 1
+
+    finally:
+        # Clean up
+        if os.path.exists(csv_path_v1):
+            os.unlink(csv_path_v1)
+        if os.path.exists(csv_path_v2):
+            os.unlink(csv_path_v2)

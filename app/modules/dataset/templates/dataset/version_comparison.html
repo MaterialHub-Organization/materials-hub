@@ -1,0 +1,266 @@
+{% extends "base_template.html" %}
+
+{% block title %}Compare Versions - {{ dataset.ds_meta_data.title }}{% endblock %}
+
+{% block content %}
+
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h1 class="h3 mb-0">Actualización del dataset</h1>
+            <a href="{{ url_for('dataset.list_versions', dataset_id=dataset.id) }}" class="btn btn-secondary">
+                <i data-feather="arrow-left"></i> Back to Versions
+            </a>
+        </div>
+
+        <!-- Version Info -->
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title mb-3">Comparing Versions</h5>
+                <div class="row align-items-center">
+                    <div class="col-md-5">
+                        <div class="d-flex align-items-center">
+                            <span class="badge bg-danger me-2">v{{ version1.version_number }}</span>
+                            <small class="text-muted">{{ version1.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                        </div>
+                    </div>
+                    <div class="col-md-2 text-center">
+                        <i data-feather="arrow-right"></i>
+                    </div>
+                    <div class="col-md-5">
+                        <div class="d-flex align-items-center justify-content-end">
+                            <span class="badge bg-success me-2">v{{ version2.version_number }}</span>
+                            <small class="text-muted">{{ version2.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                        </div>
+                    </div>
+                </div>
+                {% if current_user.is_authenticated and current_user.id == dataset.user_id %}
+                <hr class="my-3">
+                <div class="d-flex gap-2">
+                    <a href="{{ url_for('dataset.view_materials_dataset', dataset_id=dataset.id) }}"
+                       class="btn btn-sm btn-outline-secondary">
+                        <i data-feather="eye"></i> View Dataset
+                    </a>
+                    <a href="{{ url_for('dataset.edit_materials_dataset', dataset_id=dataset.id) }}"
+                       class="btn btn-sm btn-outline-primary">
+                        <i data-feather="edit-2"></i> Edit Dataset
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Metadata Comparison -->
+        {% if metadata_comparison %}
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i data-feather="info"></i> Metadata Changes
+                </h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            <th>Status</th>
+                            <th>Old Value</th>
+                            <th>New Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for field, comparison in metadata_comparison.items() %}
+                        <tr class="{% if comparison.changed %}table-warning{% endif %}">
+                            <td><strong>{{ field|replace('_', ' ')|title }}</strong></td>
+                            <td>
+                                {% if comparison.changed %}
+                                <span class="badge bg-warning">Changed</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Unchanged</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if field == 'authors' %}
+                                    {{ comparison.old|length }} author(s)
+                                {% else %}
+                                    {{ comparison.old if comparison.old else '-' }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if field == 'authors' %}
+                                    {{ comparison.new|length }} author(s)
+                                {% else %}
+                                    {{ comparison.new if comparison.new else '-' }}
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- File Comparison -->
+        {% if file_comparison %}
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i data-feather="file-text"></i> Changes in Records
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body text-center">
+                                <h4>{{ file_comparison.added_records|length }}</h4>
+                                <small>Added Records</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-danger text-white">
+                            <div class="card-body text-center">
+                                <h4>{{ file_comparison.deleted_records|length }}</h4>
+                                <small>Deleted Records</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-dark">
+                            <div class="card-body text-center">
+                                <h4>{{ file_comparison.modified_records|length }}</h4>
+                                <small>Modified Records</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-secondary text-white">
+                            <div class="card-body text-center">
+                                <h4>{{ file_comparison.unchanged_records_count }}</h4>
+                                <small>Unchanged Records</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Deleted Records -->
+                {% if file_comparison.deleted_records %}
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <div class="card border-danger">
+                            <div class="card-header bg-danger text-white">
+                                <h6 class="mb-0">
+                                    <i data-feather="minus-circle"></i>
+                                    Deleted Records ({{ file_comparison.deleted_records|length }})
+                                </h6>
+                            </div>
+                            <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+                                {% for record in file_comparison.deleted_records %}
+                                <div class="alert alert-danger mb-2">
+                                    <strong>{{ record.material_name }}</strong> - {{ record.property_name }}: {{ record.property_value }} {{ record.property_unit }}
+                                    {% if record.temperature %}<br><small>Temperature: {{ record.temperature }}K</small>{% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Added Records -->
+                {% if file_comparison.added_records %}
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <div class="card border-success">
+                            <div class="card-header bg-success text-white">
+                                <h6 class="mb-0">
+                                    <i data-feather="plus-circle"></i>
+                                    Added Records ({{ file_comparison.added_records|length }})
+                                </h6>
+                            </div>
+                            <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+                                {% for record in file_comparison.added_records %}
+                                <div class="alert alert-success mb-2">
+                                    <strong>{{ record.material_name }}</strong> - {{ record.property_name }}: {{ record.property_value }} {{ record.property_unit }}
+                                    {% if record.temperature %}<br><small>Temperature: {{ record.temperature }}K</small>{% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Modified Records - Show differences -->
+                {% if file_comparison.modified_records %}
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <div class="card border-warning">
+                            <div class="card-header bg-warning text-dark">
+                                <h6 class="mb-0">
+                                    <i data-feather="edit"></i>
+                                    Modified Records ({{ file_comparison.modified_records|length }})
+                                </h6>
+                            </div>
+                            <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                                {% for mod in file_comparison.modified_records %}
+                                <div class="card mb-3">
+                                    <div class="card-header bg-light">
+                                        <strong>{{ mod.old.material_name }}</strong>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            {% set changes_found = [] %}
+
+                                            {% for key in mod.old.keys() %}
+                                                {% if key != 'record_id' and mod.old[key]|normalize_value != mod.new[key]|normalize_value %}
+                                                    {% set _ = changes_found.append(1) %}
+                                                    <div class="col-md-6 mb-2">
+                                                        <div class="p-2 border rounded">
+                                                            <small class="text-muted">{{ key.replace('_', ' ').title() }}:</small><br>
+                                                            <span class="text-danger">
+                                                                <i data-feather="arrow-left" style="width: 14px; height: 14px;"></i>
+                                                                {{ mod.old[key] or '—' }}
+                                                            </span>
+                                                            <br>
+                                                            <span class="text-success">
+                                                                <i data-feather="arrow-right" style="width: 14px; height: 14px;"></i>
+                                                                {{ mod.new[key] or '—' }}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                {% endif %}
+                                            {% endfor %}
+
+                                            {% if changes_found|length == 0 %}
+                                                <div class="col-12">
+                                                    <small class="text-muted">No visible changes detected</small>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+// Initialize feather icons
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+});
+</script>
+
+{% endblock %}
