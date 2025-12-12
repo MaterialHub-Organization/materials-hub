@@ -3,9 +3,7 @@
 [![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=MaterialHub-Organization_materials-hub&metric=alert_status)](https://sonarcloud.io/dashboard?id=MaterialHub-Organization_materials-hub)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=MaterialHub-Organization_materials-hub&metric=coverage)](https://sonarcloud.io/dashboard?id=MaterialHub-Organization_materials-hub)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
-
 ##
-
 <p align = "center">
   <img src="app/static/img/icons/materials.png" alt="Materials Hub" height="250">
 </p>
