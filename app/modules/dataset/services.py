@@ -1070,6 +1070,7 @@ class DatasetVersionService:
                 Excludes only the editable measurement values (property_value, uncertainty, description).
                 This ensures unique matching even when temp/pressure are empty.
                 """
+
                 def norm(val):
                     if val is None or val == "" or val == "None":
                         return ""
@@ -1091,7 +1092,7 @@ class DatasetVersionService:
                     norm(record.get("property_name", "")),
                     norm(record.get("property_unit", "")),
                     norm(record.get("temperature", "")),
-                    norm(record.get("pressure", ""))
+                    norm(record.get("pressure", "")),
                 )
 
             # Build indices

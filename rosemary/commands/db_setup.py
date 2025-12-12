@@ -38,17 +38,22 @@ def db_setup(yes):
     # Step 0: Clean database completely (tables + ENUMs)
     click.echo(click.style("\n[1/4] Cleaning database...", fg="red"))
     try:
-        from app import create_app, db
         from sqlalchemy import text
+
+        from app import create_app, db
 
         app = create_app()
         with app.app_context():
             # Drop all tables
-            result = db.session.execute(text("""
+            result = db.session.execute(
+                text(
+                    """
                 SELECT tablename
                 FROM pg_tables
                 WHERE schemaname = 'public';
-            """))
+            """
+                )
+            )
             tables = [row[0] for row in result]
 
             if tables:
@@ -58,13 +63,17 @@ def db_setup(yes):
                 db.session.commit()
 
             # Drop all ENUM types
-            result = db.session.execute(text("""
+            result = db.session.execute(
+                text(
+                    """
                 SELECT t.typname
                 FROM pg_type t
                 JOIN pg_enum e ON t.oid = e.enumtypid
                 WHERE t.typnamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')
                 GROUP BY t.typname;
-            """))
+            """
+                )
+            )
             enum_types = [row[0] for row in result]
 
             if enum_types:
@@ -80,6 +89,7 @@ def db_setup(yes):
 
     # Clear uploads
     from rosemary.commands.clear_uploads import clear_uploads
+
     ctx = click.get_current_context()
     ctx.invoke(clear_uploads)
 
@@ -101,7 +111,7 @@ def db_setup(yes):
     # Check if there are migration files
     has_migrations = False
     if os.path.exists(versions_dir):
-        migration_files = [f for f in os.listdir(versions_dir) if f.endswith('.py') and f != '__init__.py']
+        migration_files = [f for f in os.listdir(versions_dir) if f.endswith(".py") and f != "__init__.py"]
         has_migrations = len(migration_files) > 0
 
     if not has_migrations:
