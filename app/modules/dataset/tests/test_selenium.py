@@ -688,3 +688,65 @@ def test_delete_material_record_removes_it_from_view():
 
     finally:
         close_driver(driver)
+
+
+def test_fakenodo_assigns_dataset_doi_visible_in_view():
+    """
+    Flujo: comprobar que Fakenodo asigna un DOI al MaterialsDataset
+    y que se muestra en la vista /materials/<id> dentro del bloque "Dataset DOI".
+
+    Requisitos del template:
+    - exista el bloque con texto "Dataset DOI"
+    - el enlace sea https://doi.org/<dataset_doi>
+    """
+    driver = initialize_driver()
+    host = get_host_for_selenium_testing()
+
+    try:
+        # 1) Login
+        login(driver, host)
+
+        # 2) Crear dataset -> ir a /materials/<id>/upload
+        dataset_id, _ = create_materials_dataset_and_go_to_csv_upload(driver, host, title_suffix="DOI")
+
+        # 3) Subir CSV y ir a /materials/<id>
+        upload_csv_for_dataset(driver)
+        go_to_view_dataset_from_upload_result(driver, dataset_id)
+        wait_for_page_to_load(driver)
+
+        # 4) Localizar el bloque "Dataset DOI" (evitando coger el link "Edit")
+        doi_label = WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.XPATH, "//span[normalize-space()='Dataset DOI']"))
+        )
+
+        # Subir a la fila y coger el link SOLO de la columna derecha (col-md-8)
+        doi_link = doi_label.find_element(
+            By.XPATH,
+            "./ancestor::div[contains(@class,'row')][1]//div[contains(@class,'col-md-8')]//a",
+        )
+
+        doi_text = (doi_link.text or "").strip()
+        doi_href = (doi_link.get_attribute("href") or "").strip()
+
+        assert doi_text, "El bloque 'Dataset DOI' existe, pero el enlace no tiene texto"
+        assert doi_href, "El bloque 'Dataset DOI' existe, pero el enlace no tiene href"
+
+        # 5) Comprobar formato: el href debe ir a doi.org/<doi_text>
+        expected_prefix = "https://doi.org/"
+        assert doi_href.startswith(expected_prefix), "El enlace del DOI no apunta a doi.org.\n" f"href: {doi_href}"
+
+        # el template hace: https://doi.org/{{ dataset.ds_meta_data.dataset_doi }}
+        assert doi_href == f"{expected_prefix}{doi_text}", (
+            "El href del DOI no coincide con el DOI mostrado.\n"
+            f"Texto DOI: {doi_text}\n"
+            f"href: {doi_href}\n"
+            f"Esperado: {expected_prefix}{doi_text}"
+        )
+
+        # Validación mínima del DOI (flexible pero útil)
+        assert doi_text.startswith("10."), (
+            "El DOI debería empezar por '10.' (formato típico de DOI).\n" f"Texto DOI: {doi_text}"
+        )
+
+    finally:
+        close_driver(driver)
